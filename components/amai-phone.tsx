@@ -17,7 +17,7 @@ export function AmaiPhone() {
 
   return (
     <PhoneShell eyebrow="AMAI · HARARE" tone="receive">
-      <div className="border-b border-[#E4EEE6] bg-[#F4F8F5] px-4 pb-4 pt-10">
+      <div className="shrink-0 border-b border-[#E4EEE6] bg-[#F4F8F5] px-4 pb-3 pt-6">
         <p className="text-xs font-semibold tracking-[0.14em] text-[#3E6B52]">{t(lang, "voucherLabel")}</p>
         <h2 className="mt-1 text-xl font-semibold tracking-tight">{t(lang, "mhoroAmai")}</h2>
         <p className="text-sm text-[#4E6558]">{t(lang, "phoneChanges")}</p>

@@ -147,7 +147,7 @@ export function UssdScreen() {
         {fault ? `\n${fault}` : ""}
         {corridor.busy ? `\n\n${t(lang, "ussdWorking")}` : ""}
       </pre>
-      <div className="grid grid-cols-3 gap-1.5 p-3">
+      <div className="grid shrink-0 grid-cols-3 gap-1.5 p-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0", "ok"].map((key) => (
           <button
             key={key}

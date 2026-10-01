@@ -23,15 +23,12 @@ function DeskFrame() {
   const awaiting = corridor.orders.find((order) => order.status === "awaiting_payment");
 
   return (
-    <div className="min-h-dvh bg-[#1A1410] text-[#F6EDE6]">
-      <header className="mx-auto flex max-w-6xl flex-wrap items-end justify-between gap-4 px-4 py-6">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#1A1410] text-[#F6EDE6]">
+      <header className="mx-auto flex w-full max-w-6xl shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-[#E7Cbb8]">MUKURU HOME · SHEHACKS</p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Johannesburg to Harare.</h1>
-          <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#E7Cbb8]">
-            Thandi sends on payday. The fee is visible, the rate locks, and Amai is told only when the money is ready to
-            collect. Demo PIN 2580.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">Johannesburg to Harare.</h1>
+          <p className="text-sm text-[#E7Cbb8]">Demo PIN 2580. The orange button sends the money.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex rounded-full bg-white/10 p-1">
@@ -79,7 +76,19 @@ function DeskFrame() {
         </div>
       </header>
 
-      <div className="mx-auto mb-4 flex max-w-6xl px-4 lg:hidden">
+      <div className="mx-auto w-full max-w-6xl shrink-0 px-4 pb-2">
+        <button
+          type="button"
+          data-testid="send-home"
+          disabled={corridor.busy}
+          className="h-12 w-full rounded-full bg-[#E65300] text-base font-semibold text-white disabled:opacity-40"
+          onClick={() => void corridor.requestQuote(200_000, "wallet")}
+        >
+          {t(corridor.lang, "sameSeptember")}
+        </button>
+      </div>
+
+      <div className="mx-auto flex w-full max-w-6xl shrink-0 px-4 pb-2 lg:hidden">
         <div className="grid w-full grid-cols-2 rounded-full bg-white/10 p-1">
           {(["thandi", "amai"] as const).map((item) => (
             <button
@@ -97,8 +106,8 @@ function DeskFrame() {
         </div>
       </div>
 
-      <main className="mx-auto grid max-w-6xl items-start gap-8 px-4 pb-6 lg:grid-cols-2">
-        <div className={cn(panel !== "thandi" && "max-lg:hidden")}>
+      <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 items-stretch gap-4 px-4 pb-3 lg:grid-cols-2">
+        <div className={cn("h-full min-h-0", panel !== "thandi" && "max-lg:hidden")}>
           <ThandiPhone />
           {awaiting && (
             <div className="mx-auto mt-3 max-w-[420px] rounded-2xl border border-dashed border-[#E7Cbb8]/50 px-4 py-3">
@@ -112,18 +121,15 @@ function DeskFrame() {
             </div>
           )}
         </div>
-        <div className={cn(panel !== "amai" && "max-lg:hidden")}>
+        <div className={cn("h-full min-h-0", panel !== "amai" && "max-lg:hidden")}>
           <AmaiPhone />
         </div>
       </main>
       <p className="sr-only" aria-live="polite">
         {corridor.notice ? t(corridor.lang, corridor.notice) : ""}
       </p>
-      <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs leading-relaxed text-[#B7A297]">
-        Student prototype for the Mukuru SheHacks brief. Not the real Mukuru app. The moving rate, fee bands, Borrowdale
-        booth, and card balance are fixtures. This demo dials *120#, as the brief asks. Mukuru&apos;s live code is
-        *130*567#. WhatsApp, the Mukuru Card, Orange Booths, and free collection are real channels this journey is built
-        around.
+      <footer className="shrink-0 px-4 pb-2 text-center text-[11px] leading-relaxed text-[#B7A297]">
+        Student prototype, not the real Mukuru app. This demo dials *120#. Mukuru&apos;s live code is *130*567#.
       </footer>
     </div>
   );

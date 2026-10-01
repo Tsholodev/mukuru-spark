@@ -133,7 +133,7 @@ export function ThandiPhone() {
       signal={corridor.signal}
       onSignal={corridor.setSignal}
     >
-      <div className="border-b border-[#F0E2D6] px-4 pb-3 pt-7">
+      <div className="shrink-0 border-b border-[#F0E2D6] px-4 pb-3 pt-2">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Amai Rudo</h2>
@@ -281,14 +281,15 @@ export function ThandiPhone() {
             ))}
           </div>
 
-          <div className="border-t border-[#F0E2D6] bg-[#FFF9F4] p-3">
+          <div className="shrink-0 border-t border-[#F0E2D6] bg-[#FFF9F4] p-3">
             {step === "choose" && !corridor.held && payableQuote && (
               <div className="grid gap-2">
-                <Button data-testid="pay-card" disabled={corridor.busy} size={corridor.icons ? "lg" : "default"} onClick={() => openPin("card")}>
+                <Button className="w-full" data-testid="pay-card" disabled={corridor.busy} size={corridor.icons ? "lg" : "default"} onClick={() => openPin("card")}>
                   {corridor.icons ? "▣  " : ""}
                   {t(lang, "payCard", { amount: zar(payableQuote.amountZarCents) })}
                 </Button>
                 <Button
+                  className="w-full"
                   variant="secondary"
                   data-testid="pay-retail"
                   disabled={corridor.busy}
@@ -303,7 +304,7 @@ export function ThandiPhone() {
             )}
             {step === "choose" && !corridor.held && !payableQuote && (
               <div className="grid gap-2">
-                <Button data-testid="same-september" disabled={corridor.busy} size={corridor.icons ? "lg" : "default"} onClick={() => void sameAsSeptember()}>
+                <Button className="w-full" data-testid="same-september" disabled={corridor.busy} size={corridor.icons ? "lg" : "default"} onClick={() => void sameAsSeptember()}>
                   {corridor.icons ? "↻  " : ""}
                   {t(lang, "sameSeptember")}
                 </Button>
@@ -390,7 +391,7 @@ export function ThandiPhone() {
                   <Button variant="ghost" onClick={() => setStep("choose")}>
                     {t(lang, "back")}
                   </Button>
-                  <Button data-testid="lock-rate" disabled={corridor.busy || !preview} onClick={() => void lockDraft()}>
+                  <Button className="w-full" data-testid="lock-rate" disabled={corridor.busy || !preview} onClick={() => void lockDraft()}>
                     {corridor.busy ? t(lang, "locking") : t(lang, "lockRate")}
                   </Button>
                 </div>
@@ -400,7 +401,7 @@ export function ThandiPhone() {
         </>
       )}
 
-      <div className="grid grid-cols-2 gap-2 border-t border-[#F0E2D6] bg-[#FFF9F4] p-3">
+      <div className="grid shrink-0 grid-cols-2 gap-2 border-t border-[#F0E2D6] bg-[#FFF9F4] p-3">
         <button
           type="button"
           data-testid="surface-android"
@@ -451,18 +452,18 @@ export function PhoneShell({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-auto w-full max-w-[420px]">
-      <p className="mb-2 px-2 text-[11px] font-semibold tracking-[0.16em] text-[#E7Cbb8]">{eyebrow}</p>
-      <div className="rounded-[2rem] bg-[#100E0C] p-2 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
+    <div className="mx-auto flex h-full min-h-0 w-full max-w-[420px] flex-col">
+      <p className="mb-2 shrink-0 px-2 text-[11px] font-semibold tracking-[0.16em] text-[#E7Cbb8]">{eyebrow}</p>
+      <div className="flex min-h-0 flex-1 flex-col rounded-[2rem] bg-[#100E0C] p-2 shadow-[0_30px_80px_rgba(0,0,0,0.35)]">
         <div
           className={cn(
-            "relative flex h-[740px] max-h-[calc(100dvh-8.5rem)] flex-col overflow-hidden rounded-[1.55rem] text-[#241910]",
+            "relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.55rem] text-[#241910]",
             tone === "receive" ? "bg-[#F7FBF8]" : "bg-[#FFF9F4]",
           )}
         >
           <div className="absolute left-1/2 top-2 z-10 h-5 w-24 -translate-x-1/2 rounded-full bg-[#100E0C]" />
           {clock && signal && onSignal && (
-            <div className="flex items-center justify-between px-4 pb-1 pt-8">
+            <div className="flex shrink-0 items-center justify-between px-4 pb-1 pt-7">
               <span className="text-xs font-semibold tabular-nums">{clock}</span>
               <SignalControl signal={signal} onChange={onSignal} />
             </div>
@@ -491,7 +492,7 @@ function SignalControl({ signal, onChange }: { signal: Signal; onChange: (signal
           data-testid={`signal-${option.id}`}
           onClick={() => onChange(option.id)}
           className={cn(
-            "rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            "min-h-8 rounded-full px-3 py-1.5 text-[11px] font-semibold",
             signal === option.id ? "bg-[#241910] text-white" : "text-[#6D5E55]",
           )}
         >
