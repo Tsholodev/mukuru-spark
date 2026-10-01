@@ -1,4 +1,5 @@
 import { randomBytes } from "crypto";
+import { requireAccount } from "@/lib/auth";
 import { placeOrder, type PayWith } from "@/lib/engine";
 import { updateLedger } from "@/lib/store";
 
@@ -33,6 +34,8 @@ export async function POST(request: Request) {
   if (body.payWith !== "card" && body.payWith !== "retail") {
     return Response.json({ error: "bad_request" }, { status: 400 });
   }
+  const account = await requireAccount("sender");
+  if (!account) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const placed = await updateLedger((ledger) => {
     const result = placeOrder(

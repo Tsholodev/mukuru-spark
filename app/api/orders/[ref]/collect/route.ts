@@ -1,3 +1,4 @@
+import { requireAccount } from "@/lib/auth";
 import { markCollected } from "@/lib/engine";
 import { updateLedger } from "@/lib/store";
 
@@ -9,6 +10,8 @@ const REF = /^MUK-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}$/;
 export async function POST(_request: Request, context: { params: Promise<{ ref: string }> }) {
   const { ref } = await context.params;
   if (!REF.test(ref)) return Response.json({ error: "bad_request" }, { status: 400 });
+  const account = await requireAccount("receiver");
+  if (!account) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const result = await updateLedger((ledger) => {
     const collected = markCollected(ledger, ref, Date.now());

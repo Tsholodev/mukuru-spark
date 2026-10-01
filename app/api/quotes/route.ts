@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { requireAccount } from "@/lib/auth";
 import { addQuote, buildQuote, type Payout } from "@/lib/engine";
 import { updateLedger } from "@/lib/store";
 
@@ -12,6 +13,9 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: "bad_request" }, { status: 400 });
   }
+
+  const account = await requireAccount("sender");
+  if (!account) return Response.json({ error: "unauthorized" }, { status: 401 });
 
   const amount = body.amountZarCents;
   const payout = body.payout;

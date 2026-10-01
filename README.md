@@ -6,6 +6,21 @@ Thandi works in Johannesburg and sends money to her mother in Harare every month
 
 This is a student prototype. It is not the Mukuru app. The rate moves on a timer so the lock is visible. It is not Mukuru's live quote.
 
+## Accounts and database
+
+Sign-in is checked on the server. Passwords are hashed. The session cookie is HTTP-only. Thandi cannot open Amai's page, and Amai cannot send from Thandi's card.
+
+| Person | Phone | Sign-in | Home |
+| --- | --- | --- | --- |
+| Thandi | 079 000 1111 | 25802580 | /home |
+| Amai | 077 441 8000 | 4418 | /collect |
+
+The card PIN for a send is still **2580**. That is separate from the sign-in secret.
+
+Orders, quotes, sessions, and USSD sessions are rows in Postgres. The schema is `supabase/schema.sql`. This environment runs Postgres locally. Supabase is hosted Postgres: create a project, set `DATABASE_URL` to the connection string from Project Settings → Database, set `DATABASE_SSL=require`, and run the schema SQL if the app user cannot create tables. The app does not use a JSON file as the ledger anymore.
+
+`*120#` calls the same order API as the web account. Open it from Thandi's phone, from Amai's page, or at `/ussd`.
+
 ## Run it
 
 ```bash

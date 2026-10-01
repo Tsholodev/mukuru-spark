@@ -1,9 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { t } from "@/lib/copy";
-import { AmaiPhone } from "@/components/amai-phone";
 import { CorridorProvider, useCorridor } from "@/components/corridor-context";
 import { ThandiPhone } from "@/components/thandi-phone";
 import { Button } from "@/components/ui/button";
@@ -19,11 +17,10 @@ export function Desk() {
 
 function DeskFrame() {
   const corridor = useCorridor();
-  const [panel, setPanel] = useState<"thandi" | "amai">("thandi");
   const awaiting = corridor.orders.find((order) => order.status === "awaiting_payment");
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#1A1410] text-[#F6EDE6]">
+    <div className="glass-page flex h-dvh flex-col overflow-hidden">
       <header className="mx-auto flex w-full max-w-6xl shrink-0 flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div>
           <p className="text-xs font-semibold tracking-[0.18em] text-[#E7Cbb8]">MUKURU HOME · SHEHACKS</p>
@@ -73,6 +70,16 @@ function DeskFrame() {
           <Button variant="secondary" data-testid="reset-demo" onClick={() => void corridor.resetDemo()}>
             Reset payday
           </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void fetch("/api/auth/logout", { method: "POST" }).then(() => {
+                window.location.href = "/";
+              });
+            }}
+          >
+            Sign out
+          </Button>
         </div>
       </header>
 
@@ -88,26 +95,8 @@ function DeskFrame() {
         </button>
       </div>
 
-      <div className="mx-auto flex w-full max-w-6xl shrink-0 px-4 pb-2 lg:hidden">
-        <div className="grid w-full grid-cols-2 rounded-full bg-white/10 p-1">
-          {(["thandi", "amai"] as const).map((item) => (
-            <button
-              key={item}
-              type="button"
-              className={cn(
-                "h-10 rounded-full text-sm font-semibold",
-                panel === item ? "bg-white text-[#241910]" : "text-[#E7Cbb8]",
-              )}
-              onClick={() => setPanel(item)}
-            >
-              {item === "thandi" ? "Thandi's phone" : "Amai's phone"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <main className="mx-auto grid min-h-0 w-full max-w-6xl flex-1 items-stretch gap-4 px-4 pb-3 lg:grid-cols-2">
-        <div className={cn("h-full min-h-0", panel !== "thandi" && "max-lg:hidden")}>
+      <main className="mx-auto grid min-h-0 w-full max-w-md flex-1 items-stretch px-4 pb-3">
+        <div className="h-full min-h-0">
           <ThandiPhone />
           {awaiting && (
             <div className="mx-auto mt-3 max-w-[420px] rounded-2xl border border-dashed border-[#E7Cbb8]/50 px-4 py-3">
@@ -120,9 +109,6 @@ function DeskFrame() {
               </Button>
             </div>
           )}
-        </div>
-        <div className={cn("h-full min-h-0", panel !== "amai" && "max-lg:hidden")}>
-          <AmaiPhone />
         </div>
       </main>
       <p className="sr-only" aria-live="polite">

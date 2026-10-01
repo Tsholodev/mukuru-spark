@@ -6,9 +6,24 @@
 }
 
 body {
-  background: #1a1410;
+  background: #140f0c;
   color: #241910;
   font-family: var(--font-sans), "Segoe UI", sans-serif;
+}
+
+.glass-page {
+  background:
+    radial-gradient(900px 480px at 8% -10%, rgba(230, 83, 0, 0.5), transparent 58%),
+    radial-gradient(700px 460px at 100% 110%, rgba(62, 107, 82, 0.38), transparent 55%),
+    #140f0c;
+  color: #fff9f4;
+}
+
+.glass {
+  background: rgba(255, 249, 244, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
 }
 
 .chat-scroll {

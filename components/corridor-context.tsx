@@ -104,6 +104,11 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
   function setLang(next: Lang) {
     setLangState(next);
     localStorage.setItem(LANG_KEY, next);
+    void fetch("/api/auth/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lang: next }),
+    });
   }
 
   function setIcons(next: boolean) {
@@ -134,9 +139,16 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
   async function refresh() {
     try {
       const response = await fetch("/api/corridor", { cache: "no-store" });
+      if (response.status === 401) {
+        window.location.href = "/";
+        return;
+      }
       if (!response.ok) throw new Error("load");
       const payload = await response.json();
       applyPayload(payload);
+      if (payload.account?.lang === "en" || payload.account?.lang === "sn") {
+        setLangState(payload.account.lang);
+      }
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -187,6 +199,10 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
       if (signalRef.current !== "off") {
         try {
           const response = await fetch("/api/corridor", { cache: "no-store" });
+          if (response.status === 401) {
+            window.location.href = "/";
+            return;
+          }
           if (response.ok) {
             const payload = await response.json();
             applyPayload(payload);

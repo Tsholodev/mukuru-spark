@@ -10,7 +10,7 @@ import { useCorridor, type Signal } from "@/components/corridor-context";
 import { PinSheet } from "@/components/pin-sheet";
 import { QuoteCard } from "@/components/quote-card";
 import { StatusTrack } from "@/components/status-track";
-import { UssdScreen } from "@/components/ussd-screen";
+import { UssdLive } from "@/components/ussd-live";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -157,7 +157,7 @@ export function ThandiPhone() {
       </div>
 
       {corridor.surface === "ussd" ? (
-        <UssdScreen />
+        <UssdLive />
       ) : (
         <>
           <div ref={chatRef} className="chat-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
