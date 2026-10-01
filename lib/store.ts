@@ -8,12 +8,12 @@ let queue: Promise<unknown> = Promise.resolve();
 let memory: Ledger | null = null;
 
 async function read(): Promise<Ledger> {
-  if (memory) return structuredClone(memory);
   try {
     const raw = await fs.readFile(file, "utf8");
     memory = JSON.parse(raw) as Ledger;
     return structuredClone(memory);
   } catch {
+    if (memory) return structuredClone(memory);
     memory = freshLedger();
     return structuredClone(memory);
   }
@@ -46,7 +46,12 @@ export function updateLedger<T>(fn: (ledger: Ledger) => { ledger: Ledger; result
 }
 
 export function readLedger(): Promise<Ledger> {
-  return updateLedger((ledger) => ({ ledger, result: ledger }));
+  const run = queue.then(() => read());
+  queue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
 }
 
 export function resetLedger(): Promise<Ledger> {
