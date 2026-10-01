@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { buildQuote, type PayWith, type Payout } from "@/lib/engine";
-import { day, parseRands, usd, zar } from "@/lib/format";
+import { buildQuote, usdCentsFromNet, type PayWith, type Payout } from "@/lib/engine";
+import { t } from "@/lib/copy";
+import { day, parseRands, rateLabel, usd, zar } from "@/lib/format";
 import { voucherMessage } from "@/lib/message";
 import { thandi } from "@/lib/profile";
 import { useCorridor, type Signal } from "@/components/corridor-context";
 import { PinSheet } from "@/components/pin-sheet";
 import { QuoteCard } from "@/components/quote-card";
+import { StatusTrack } from "@/components/status-track";
 import { UssdScreen } from "@/components/ussd-screen";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -16,6 +18,7 @@ const PRESETS = [50_000, 100_000, 200_000, 350_000];
 
 export function ThandiPhone() {
   const corridor = useCorridor();
+  const lang = corridor.lang;
   const [step, setStep] = useState<"choose" | "amount">("choose");
   const [payout, setPayout] = useState<Payout>("wallet");
   const [preset, setPreset] = useState(200_000);
@@ -70,8 +73,16 @@ export function ThandiPhone() {
   const preview = useMemo(() => {
     if (!draftCents) return null;
     const built = buildQuote(draftCents, payout, Date.now(), "preview");
-    return built.ok ? built.quote : null;
-  }, [draftCents, payout]);
+    if (!built.ok) return null;
+    if (!corridor.fx) return built.quote;
+    return {
+      ...built.quote,
+      rateMilli: corridor.fx.rateMilli,
+      midMilli: corridor.fx.midMilli,
+      usdOutCents: usdCentsFromNet(built.quote.netZarCents, corridor.fx.rateMilli),
+      midUsdCents: usdCentsFromNet(built.quote.netZarCents, corridor.fx.midMilli),
+    };
+  }, [draftCents, payout, corridor.fx]);
 
   function openPin(payWith: PayWith) {
     setPinPay(payWith);
@@ -79,7 +90,7 @@ export function ThandiPhone() {
   }
 
   async function sameAsSeptember() {
-    setSaid((items) => [...items, "Same as September. R2 000 to her wallet."]);
+    setSaid((items) => [...items, t(lang, "saidSame")]);
     setStep("choose");
     await corridor.requestQuote(200_000, "wallet");
   }
@@ -88,7 +99,10 @@ export function ThandiPhone() {
     if (!draftCents || !preview) return;
     setSaid((items) => [
       ...items,
-      `${zar(draftCents)} to ${payout === "wallet" ? "her wallet" : "a booth"}.`,
+      t(lang, "saidAmount", {
+        amount: zar(draftCents),
+        where: t(lang, payout === "wallet" ? "whereWallet" : "whereBooth"),
+      }),
     ]);
     const quote = await corridor.requestQuote(draftCents, payout);
     if (quote) setStep("choose");
@@ -123,7 +137,7 @@ export function ThandiPhone() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Amai Rudo</h2>
-            <p className="text-sm text-[#6D5E55]">Harare · mother · every month</p>
+            <p className="text-sm text-[#6D5E55]">{t(lang, "everyMonth")}</p>
           </div>
           <div className="text-right">
             <p className="text-[11px] font-semibold tracking-[0.14em] text-[#9A7B68]">CARD ••{thandi.cardLast4}</p>
@@ -132,7 +146,14 @@ export function ThandiPhone() {
             </p>
           </div>
         </div>
-        <p className="mt-2 text-sm text-[#6D5E55]">Payday is on the card. You do not need to phone anyone.</p>
+        <div className="mt-2 flex items-baseline justify-between gap-3">
+          <p className="text-sm text-[#6D5E55]">{t(lang, "paydayLine")}</p>
+          {corridor.fx && (
+            <p className="text-xs font-semibold tabular-nums text-[#241910]" data-testid="live-rate">
+              {t(lang, "liveRate")} {rateLabel(corridor.fx.rateMilli)}
+            </p>
+          )}
+        </div>
       </div>
 
       {corridor.surface === "ussd" ? (
@@ -142,23 +163,17 @@ export function ThandiPhone() {
           <div ref={chatRef} className="chat-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-4">
             {corridor.notice && (
               <p className="rounded-2xl bg-[#FFF4D8] px-4 py-3 text-sm leading-relaxed text-[#6A4B12]" data-testid="notice">
-                {corridor.notice}
+                {t(lang, corridor.notice)}
               </p>
             )}
             <Bubble>
-              {september ? (
-                <>
-                  Mhoro, Thandi. Payday. September reached Amai on {day(september.createdAt)}. She got{" "}
-                  {usd(september.usdOutCents)} in her wallet, and she has already cashed it out. Send October the same
-                  way?
-                </>
-              ) : (
-                "Mhoro, Thandi. Send money home when you are ready."
-              )}
+              {september
+                ? t(lang, "intro", { date: day(september.createdAt), usd: usd(september.usdOutCents) })
+                : t(lang, "introEmpty")}
             </Bubble>
             {history.length > 0 && (
               <details className="rounded-2xl bg-white/70 px-4 py-3 text-sm text-[#6D5E55]">
-                <summary className="cursor-pointer font-semibold text-[#241910]">Earlier sends</summary>
+                <summary className="cursor-pointer font-semibold text-[#241910]">{t(lang, "earlier")}</summary>
                 <ul className="mt-3 space-y-2">
                   {history.map((order) => (
                     <li key={order.ref} className="flex justify-between gap-3 tabular-nums">
@@ -166,7 +181,7 @@ export function ThandiPhone() {
                         {day(order.createdAt)} · {order.ref}
                       </span>
                       <span>
-                        {usd(order.usdOutCents)} · {order.status === "cashed_out" ? "cashed out" : "collected"}
+                        {usd(order.usdOutCents)} · {t(lang, "collected")}
                       </span>
                     </li>
                   ))}
@@ -180,16 +195,27 @@ export function ThandiPhone() {
             ))}
             {step === "amount" && preview && <QuoteCard quote={preview} locked={false} busy={corridor.busy} />}
             {step === "amount" && custom.trim() && !preview && (
-              <p className="text-sm text-[#9F2D20]">Use an amount from R100 to R5 000, like 1500 or 1500.50.</p>
+              <p className="text-sm text-[#9F2D20]">{t(lang, "amountError")}</p>
             )}
-            {payableQuote && step !== "amount" && <QuoteCard quote={payableQuote} locked busy={corridor.busy} />}
+            {payableQuote && step !== "amount" && (
+              <>
+                <QuoteCard quote={payableQuote} locked busy={corridor.busy} />
+                {corridor.fx && corridor.fx.rateMilli !== payableQuote.rateMilli && (
+                  <p className="text-xs leading-snug text-[#6A4B12]" data-testid="rate-moved">
+                    {t(lang, "rateMoved")}
+                  </p>
+                )}
+              </>
+            )}
             {corridor.held && (
               <article className="rounded-3xl border border-[#E7C27A] bg-[#FFF8E8] p-4" data-testid="held-card">
-                <p className="text-xs font-semibold tracking-[0.14em] text-[#8A5A00]">HELD ON THIS PHONE</p>
-                <p className="mt-2 text-lg font-semibold">Your money has not left the card.</p>
+                <p className="text-xs font-semibold tracking-[0.14em] text-[#8A5A00]">{t(lang, "heldKicker")}</p>
+                <p className="mt-2 text-lg font-semibold">{t(lang, "heldTitle")}</p>
                 <p className="mt-2 text-sm leading-relaxed text-[#6A4B12]">
-                  Amai has not been told. When the signal is back, this same order is sent. It is not a second charge.
-                  {corridor.held.payWith === "retail" ? " This one waits for PEP." : ` ${zar(corridor.held.quote.amountZarCents)} to Amai, ${usd(corridor.held.quote.usdOutCents)}.`}
+                  {t(lang, "heldBody")}
+                  {corridor.held.payWith === "retail"
+                    ? ""
+                    : ` ${zar(corridor.held.quote.amountZarCents)} · ${usd(corridor.held.quote.usdOutCents)}.`}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button
@@ -197,10 +223,10 @@ export function ThandiPhone() {
                     data-testid="resume-held"
                     onClick={() => openPin(corridor.held?.payWith ?? "card")}
                   >
-                    {corridor.busy ? "Still sending…" : "Type PIN for this same order"}
+                    {corridor.busy ? t(lang, "stillSending") : t(lang, "resume")}
                   </Button>
                   <Button variant="secondary" disabled={corridor.busy} onClick={() => void corridor.releaseHeld()}>
-                    Leave it unsent
+                    {t(lang, "leaveUnsent")}
                   </Button>
                 </div>
               </article>
@@ -208,21 +234,33 @@ export function ThandiPhone() {
             {sessionOrders.map((order) => (
               <article key={order.ref} className="rounded-3xl bg-[#E65300] p-4 text-white" data-testid="receipt">
                 <p className="text-xs font-semibold tracking-[0.14em] text-white/80">
-                  {order.status === "awaiting_payment" ? "WAITING FOR PEP" : "SENT"}
+                  {order.status === "awaiting_payment" ? t(lang, "receiptWaiting") : t(lang, "receiptSent")}
                 </p>
                 <p className="mt-2 font-mono text-2xl font-medium tracking-wide">{order.ref}</p>
-                <p className="mt-2 text-lg font-semibold">{usd(order.usdOutCents)} for Amai</p>
-                <p className="mt-1 text-sm leading-relaxed text-white/90">
+                <p className="mt-2 text-lg font-semibold">{t(lang, "forAmai", { usd: usd(order.usdOutCents) })}</p>
+                {order.status !== "awaiting_payment" && (
+                  <div className="mt-3 rounded-2xl bg-white px-2 py-3 text-[#241910]">
+                    <StatusTrack status={order.status} lang={lang} icons={corridor.icons} />
+                  </div>
+                )}
+                <p className="mt-2 text-sm leading-relaxed text-white/90">
                   {order.status === "awaiting_payment"
-                    ? "Pay this number at PEP. Amai has no voucher until the cash is confirmed."
-                    : order.payout === "wallet"
-                      ? "The money is in her Mukuru Wallet. Cash-out at a booth is free on this transfer."
-                      : "She can collect the notes. She needs her ID and this number."}
+                    ? t(lang, "pepNote")
+                    : order.status === "ready"
+                      ? t(lang, "readyNotice")
+                      : order.status === "collected"
+                        ? t(lang, "collected")
+                        : t(lang, "onTheWay")}
                 </p>
+                {order.status === "ready" || order.status === "collected" ? (
+                  <p className="mt-1 text-sm leading-relaxed text-white/90">
+                    {order.payout === "wallet" ? t(lang, "inWalletNote") : t(lang, "cashNote")}
+                  </p>
+                ) : null}
                 <p className="mt-2 text-sm text-white/80">
                   {order.payWith === "card"
-                    ? `Card charged ${zar(order.amountZarCents)}.`
-                    : "The card was not charged. PEP takes the cash."}
+                    ? t(lang, "cardCharged", { amount: zar(order.amountZarCents) })
+                    : t(lang, "cardNotCharged")}
                 </p>
                 {order.voucherAt && (
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -230,11 +268,11 @@ export function ThandiPhone() {
                       variant="secondary"
                       onClick={() => void copyMessage(order.ref, voucherMessage(order))}
                     >
-                      {copied === order.ref ? "Copied" : "Copy WhatsApp"}
+                      {copied === order.ref ? t(lang, "copied") : t(lang, "copyWhatsapp")}
                     </Button>
                     <Button variant="secondary" asChild>
                       <a href={`/v/${order.ref}`} target="_blank" rel="noreferrer">
-                        Amai&apos;s page
+                        {t(lang, "amaiPage")}
                       </a>
                     </Button>
                   </div>
@@ -246,26 +284,28 @@ export function ThandiPhone() {
           <div className="border-t border-[#F0E2D6] bg-[#FFF9F4] p-3">
             {step === "choose" && !corridor.held && payableQuote && (
               <div className="grid gap-2">
-                <Button data-testid="pay-card" disabled={corridor.busy} onClick={() => openPin("card")}>
-                  Pay {zar(payableQuote.amountZarCents)} from the card
+                <Button data-testid="pay-card" disabled={corridor.busy} size={corridor.icons ? "lg" : "default"} onClick={() => openPin("card")}>
+                  {corridor.icons ? "▣  " : ""}
+                  {t(lang, "payCard", { amount: zar(payableQuote.amountZarCents) })}
                 </Button>
                 <Button
                   variant="secondary"
                   data-testid="pay-retail"
                   disabled={corridor.busy}
+                  size={corridor.icons ? "lg" : "default"}
                   onClick={() => openPin("retail")}
                 >
-                  Pay cash at PEP instead
+                  {corridor.icons ? "⌂  " : ""}
+                  {t(lang, "payPep")}
                 </Button>
-                <p className="text-center text-xs leading-relaxed text-[#9A7B68]">
-                  The card is charged once. PEP does not tell Amai until the till confirms the cash.
-                </p>
+                <p className="text-center text-xs leading-relaxed text-[#9A7B68]">{t(lang, "payHint")}</p>
               </div>
             )}
             {step === "choose" && !corridor.held && !payableQuote && (
               <div className="grid gap-2">
-                <Button data-testid="same-september" disabled={corridor.busy} onClick={() => void sameAsSeptember()}>
-                  Same as September · R2 000
+                <Button data-testid="same-september" disabled={corridor.busy} size={corridor.icons ? "lg" : "default"} onClick={() => void sameAsSeptember()}>
+                  {corridor.icons ? "↻  " : ""}
+                  {t(lang, "sameSeptember")}
                 </Button>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
@@ -276,7 +316,8 @@ export function ThandiPhone() {
                       setStep("amount");
                     }}
                   >
-                    Different amount
+                    {corridor.icons ? "✎  " : ""}
+                    {t(lang, "differentAmount")}
                   </Button>
                   <Button
                     variant="secondary"
@@ -287,7 +328,8 @@ export function ThandiPhone() {
                       setStep("amount");
                     }}
                   >
-                    Cash at a booth
+                    {corridor.icons ? "⌂  " : ""}
+                    {t(lang, "cashBooth")}
                   </Button>
                 </div>
               </div>
@@ -313,7 +355,7 @@ export function ThandiPhone() {
                   ))}
                 </div>
                 <label className="block text-sm text-[#6D5E55]">
-                  Or type an amount
+                  {t(lang, "typeAmount")}
                   <input
                     inputMode="decimal"
                     value={custom}
@@ -331,7 +373,7 @@ export function ThandiPhone() {
                     )}
                     onClick={() => setPayout("wallet")}
                   >
-                    Her wallet
+                    {t(lang, "herWallet")}
                   </button>
                   <button
                     type="button"
@@ -341,15 +383,15 @@ export function ThandiPhone() {
                     )}
                     onClick={() => setPayout("cash")}
                   >
-                    Booth cash
+                    {t(lang, "boothCash")}
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button variant="ghost" onClick={() => setStep("choose")}>
-                    Back
+                    {t(lang, "back")}
                   </Button>
                   <Button data-testid="lock-rate" disabled={corridor.busy || !preview} onClick={() => void lockDraft()}>
-                    {corridor.busy ? "Locking…" : "Lock this rate"}
+                    {corridor.busy ? t(lang, "locking") : t(lang, "lockRate")}
                   </Button>
                 </div>
               </div>
@@ -368,7 +410,7 @@ export function ThandiPhone() {
           )}
           onClick={() => corridor.setSurface("android")}
         >
-          This Android
+          {t(lang, "thisAndroid")}
         </button>
         <button
           type="button"
@@ -379,13 +421,13 @@ export function ThandiPhone() {
           )}
           onClick={() => corridor.setSurface("ussd")}
         >
-          USSD *130*567#
+          {t(lang, "ussd")}
         </button>
       </div>
       <PinSheet
         open={pinOpen}
         busy={corridor.busy}
-        title={pinPay === "card" ? "Mukuru Card PIN" : "PIN to start the PEP order"}
+        title={t(lang, pinPay === "card" ? "pinTitle" : "pinPep")}
         onClose={() => setPinOpen(false)}
         onSubmit={(pin) => void submitPin(pin)}
       />

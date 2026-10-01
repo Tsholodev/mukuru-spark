@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { t } from "@/lib/copy";
 import { AmaiPhone } from "@/components/amai-phone";
 import { CorridorProvider, useCorridor } from "@/components/corridor-context";
 import { ThandiPhone } from "@/components/thandi-phone";
@@ -28,11 +29,47 @@ function DeskFrame() {
           <p className="text-xs font-semibold tracking-[0.18em] text-[#E7Cbb8]">MUKURU HOME · SHEHACKS</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-white">Johannesburg to Harare.</h1>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-[#E7Cbb8]">
-            Thandi sends on payday. The fee is visible, the rate locks, and Amai hears nothing until the money is real.
-            Demo PIN 2580.
+            Thandi sends on payday. The fee is visible, the rate locks, and Amai is told only when the money is ready to
+            collect. Demo PIN 2580.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-full bg-white/10 p-1">
+            <button
+              type="button"
+              data-testid="lang-en"
+              className={cn(
+                "h-10 rounded-full px-3 text-sm font-semibold",
+                corridor.lang === "en" ? "bg-white text-[#241910]" : "text-[#E7Cbb8]",
+              )}
+              onClick={() => corridor.setLang("en")}
+            >
+              English
+            </button>
+            <button
+              type="button"
+              data-testid="lang-sn"
+              className={cn(
+                "h-10 rounded-full px-3 text-sm font-semibold",
+                corridor.lang === "sn" ? "bg-white text-[#241910]" : "text-[#E7Cbb8]",
+              )}
+              onClick={() => corridor.setLang("sn")}
+            >
+              ChiShona
+            </button>
+          </div>
+          <button
+            type="button"
+            data-testid="icon-mode"
+            aria-pressed={corridor.icons}
+            className={cn(
+              "h-10 rounded-full px-4 text-sm font-semibold",
+              corridor.icons ? "bg-white text-[#241910]" : "bg-white/10 text-[#E7Cbb8]",
+            )}
+            onClick={() => corridor.setIcons(!corridor.icons)}
+          >
+            {corridor.icons ? "Icons" : "Words"}
+          </button>
           <Button variant="secondary" asChild>
             <Link href="/pitch">Panel notes</Link>
           </Button>
@@ -80,12 +117,13 @@ function DeskFrame() {
         </div>
       </main>
       <p className="sr-only" aria-live="polite">
-        {corridor.notice}
+        {corridor.notice ? t(corridor.lang, corridor.notice) : ""}
       </p>
       <footer className="mx-auto max-w-6xl px-4 pb-8 text-xs leading-relaxed text-[#B7A297]">
-        Student prototype for the Mukuru SheHacks brief. Not the real Mukuru app. The rate card, Borrowdale booth, and
-        card balance are fixtures. USSD *130*567#, WhatsApp, Mukuru Card, Orange Booths, and free collection are real
-        Mukuru channels this journey is built around.
+        Student prototype for the Mukuru SheHacks brief. Not the real Mukuru app. The moving rate, fee bands, Borrowdale
+        booth, and card balance are fixtures. This demo dials *120#, as the brief asks. Mukuru&apos;s live code is
+        *130*567#. WhatsApp, the Mukuru Card, Orange Booths, and free collection are real channels this journey is built
+        around.
       </footer>
     </div>
   );

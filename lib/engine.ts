@@ -8,12 +8,10 @@ export const OPENING_BALANCE_CENTS = 428_040;
 
 export type Payout = "wallet" | "cash";
 export type PayWith = "card" | "retail";
-export type OrderStatus =
-  | "awaiting_payment"
-  | "in_wallet"
-  | "ready"
-  | "collected"
-  | "cashed_out";
+export type OrderStatus = "awaiting_payment" | "sent" | "in_transit" | "ready" | "collected";
+
+export const TRANSIT_MS = 3_500;
+export const READY_MS = 8_000;
 
 export type Quote = {
   id: string;
@@ -102,6 +100,7 @@ export function buildQuote(
   const fee = feeZarCents(amountZarCents, payout);
   const netZarCents = amountZarCents - fee;
   if (netZarCents <= 0) return { ok: false, error: "bad_amount" };
+  const fx = rateAt(now);
   return {
     ok: true,
     quote: {
@@ -109,10 +108,10 @@ export function buildQuote(
       amountZarCents,
       feeZarCents: fee,
       netZarCents,
-      usdOutCents: usdCentsFromNet(netZarCents, RATE_MILLI),
-      midUsdCents: usdCentsFromNet(netZarCents, MID_MILLI),
-      rateMilli: RATE_MILLI,
-      midMilli: MID_MILLI,
+      usdOutCents: usdCentsFromNet(netZarCents, fx.rateMilli),
+      midUsdCents: usdCentsFromNet(netZarCents, fx.midMilli),
+      rateMilli: fx.rateMilli,
+      midMilli: fx.midMilli,
       payout,
       createdAt: now,
       lockedUntil: now + QUOTE_TTL_MS,
@@ -133,8 +132,26 @@ export function openQuote(ledger: Ledger, now: number): Quote | null {
   return null;
 }
 
-function paidStatus(payout: Payout): OrderStatus {
-  return payout === "wallet" ? "in_wallet" : "ready";
+export function rateAt(now: number): { rateMilli: number; midMilli: number } {
+  const step = Math.floor(now / 20_000);
+  const wobble = ((step % 5) - 2) * 15;
+  const midMilli = MID_MILLI + wobble;
+  return { midMilli, rateMilli: midMilli + 430 };
+}
+
+export function projectOrder(order: Order, now: number): Order {
+  if (order.status === "awaiting_payment" || order.status === "collected" || !order.paidAt) return order;
+  const elapsed = now - order.paidAt;
+  const status: OrderStatus = elapsed >= READY_MS ? "ready" : elapsed >= TRANSIT_MS ? "in_transit" : "sent";
+  return {
+    ...order,
+    status,
+    voucherAt: status === "ready" ? order.paidAt + READY_MS : null,
+  };
+}
+
+export function projectLedger(ledger: Ledger, now: number): Ledger {
+  return { ...ledger, orders: ledger.orders.map((order) => projectOrder(order, now)) };
 }
 
 export function placeOrder(
@@ -151,7 +168,7 @@ export function placeOrder(
   }
 
   const existing = ledger.orders.find((order) => order.idempotencyKey === input.idempotencyKey);
-  if (existing) return { ledger, ok: true, order: existing };
+  if (existing) return { ledger, ok: true, order: projectOrder(existing, now) };
 
   const quote = ledger.quotes.find((item) => item.id === input.quoteId);
   if (!quote) return { ledger, ok: false, error: "no_quote" };
@@ -187,17 +204,17 @@ export function placeOrder(
     rateMilli: quote.rateMilli,
     payout: quote.payout,
     payWith: input.payWith,
-    status: paid ? paidStatus(quote.payout) : "awaiting_payment",
+    status: paid ? "sent" : "awaiting_payment",
     createdAt: now,
     paidAt: paid ? now : null,
-    voucherAt: paid ? now : null,
+    voucherAt: null,
     collectedAt: null,
     recipientName: "Rudo Ncube",
   };
 
   return {
     ok: true,
-    order,
+    order: projectOrder(order, now),
     ledger: {
       ...ledger,
       balanceZarCents: paid ? ledger.balanceZarCents - quote.amountZarCents : ledger.balanceZarCents,
@@ -217,14 +234,14 @@ export function markPaid(
 ): { ledger: Ledger; ok: true; order: Order } | { ledger: Ledger; ok: false; error: ErrorCode } {
   const order = ledger.orders.find((item) => item.ref === ref);
   if (!order) return { ledger, ok: false, error: "not_found" };
-  if (order.status !== "awaiting_payment") return { ledger, ok: true, order };
+  if (order.status !== "awaiting_payment") return { ledger, ok: true, order: projectOrder(order, now) };
   const next: Order = {
     ...order,
-    status: paidStatus(order.payout),
+    status: "sent",
     paidAt: now,
-    voucherAt: now,
+    voucherAt: null,
   };
-  return { ledger: replaceOrder(ledger, next), ok: true, order: next };
+  return { ledger: replaceOrder(ledger, next), ok: true, order: projectOrder(next, now) };
 }
 
 export function markCollected(
@@ -234,15 +251,13 @@ export function markCollected(
 ): { ledger: Ledger; ok: true; order: Order } | { ledger: Ledger; ok: false; error: ErrorCode } {
   const order = ledger.orders.find((item) => item.ref === ref);
   if (!order) return { ledger, ok: false, error: "not_found" };
-  if (order.status === "collected" || order.status === "cashed_out") {
-    return { ledger, ok: true, order };
-  }
-  if (order.status !== "ready" && order.status !== "in_wallet") {
-    return { ledger, ok: false, error: "bad_state" };
-  }
+  if (order.status === "collected") return { ledger, ok: true, order };
+  const visible = projectOrder(order, now);
+  if (visible.status !== "ready") return { ledger, ok: false, error: "bad_state" };
   const next: Order = {
     ...order,
-    status: order.status === "in_wallet" ? "cashed_out" : "collected",
+    status: "collected",
+    voucherAt: visible.voucherAt,
     collectedAt: now,
   };
   return { ledger: replaceOrder(ledger, next), ok: true, order: next };
@@ -260,7 +275,7 @@ function seedOrder(partial: {
   createdAt: number;
   amountZarCents: number;
   payout: Payout;
-  status: "collected" | "cashed_out";
+  status: "collected";
 }): Order {
   const fee = feeZarCents(partial.amountZarCents, partial.payout);
   const net = partial.amountZarCents - fee;
@@ -295,14 +310,14 @@ export function freshLedger(): Ledger {
         createdAt: Date.UTC(2026, 8, 3, 7, 12, 0),
         amountZarCents: 200_000,
         payout: "wallet",
-        status: "cashed_out",
+        status: "collected",
       }),
       seedOrder({
         ref: "MUK-8QD4P",
         createdAt: Date.UTC(2026, 7, 4, 8, 5, 0),
         amountZarCents: 200_000,
         payout: "wallet",
-        status: "cashed_out",
+        status: "collected",
       }),
       seedOrder({
         ref: "MUK-3N6WT",

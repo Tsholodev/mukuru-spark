@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { findOrder, type Order } from "@/lib/engine";
+import { findOrder, projectOrder, type Order } from "@/lib/engine";
 import { usd, zar } from "@/lib/format";
 import { amai } from "@/lib/profile";
 import { readLedger } from "@/lib/store";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 export default async function VoucherPage({ params }: { params: Promise<{ ref: string }> }) {
   const { ref } = await params;
   const ledger = await readLedger();
-  const order = findOrder(ledger, ref.toUpperCase());
+  const stored = findOrder(ledger, ref.toUpperCase());
+  const order = stored ? projectOrder(stored, Date.now()) : undefined;
 
   return (
     <main className="min-h-dvh bg-white text-[#241910]">
@@ -38,7 +39,7 @@ function Missing({ ref }: { ref: string }) {
 }
 
 function Voucher({ order }: { order: Order }) {
-  if (!order.voucherAt) {
+  if (!order.paidAt) {
     return (
       <>
         <h1 className="mt-4 text-3xl font-semibold tracking-tight">This is not a voucher.</h1>
@@ -50,10 +51,28 @@ function Voucher({ order }: { order: Order }) {
     );
   }
 
+  if (order.status !== "ready" && order.status !== "collected") {
+    return (
+      <>
+        <h1 className="mt-4 text-3xl font-semibold tracking-tight">Sent. Not ready to collect yet.</h1>
+        <p className="mt-3 text-lg leading-relaxed">
+          The money is in transit. This page changes when it is ready to collect.
+        </p>
+        <p className="mt-3 text-lg leading-relaxed">Yatumirwa. Haisati yagadzirira kutambirwa.</p>
+      </>
+    );
+  }
+
   const wallet = order.payout === "wallet";
   return (
     <>
-      <h1 className="mt-4 text-lg">Amai, mari yasvika.</h1>
+      <h1 className="mt-4 text-3xl font-semibold tracking-tight">
+        {order.status === "collected" ? "Collected." : "Your money is ready to collect."}
+      </h1>
+      <p className="mt-2 text-lg">
+        {order.status === "collected" ? "Yatambirwa." : "Mari yako yagadzirira kutambirwa."}
+      </p>
+      <p className="mt-4 text-lg">Amai, mari yasvika.</p>
       <p className="mt-2 text-5xl font-semibold tracking-tight tabular-nums">{usd(order.usdOutCents)}</p>
       <p className="mt-6 font-mono text-4xl font-medium tracking-wide">{order.ref}</p>
       <p className="mt-6 text-lg leading-relaxed">

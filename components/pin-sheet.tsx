@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { t } from "@/lib/copy";
+import { useCorridor } from "@/components/corridor-context";
 import { Button } from "@/components/ui/button";
 
 export function PinSheet({
@@ -16,6 +18,7 @@ export function PinSheet({
   onClose: () => void;
   onSubmit: (pin: string) => void;
 }) {
+  const { lang } = useCorridor();
   const [pin, setPin] = useState("");
 
   useEffect(() => {
@@ -35,7 +38,7 @@ export function PinSheet({
       <div className="w-full rounded-t-[1.6rem] bg-[#FFF9F4] px-4 pb-4 pt-5">
         <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-[#E7D9CE]" />
         <h2 className="text-lg font-semibold text-[#241910]">{title}</h2>
-        <p className="mt-1 text-sm text-[#6D5E55]">Demo PIN 2580. The card is charged only after this PIN.</p>
+        <p className="mt-1 text-sm text-[#6D5E55]">{t(lang, "pinHelp")}</p>
         <div className="mt-4 flex justify-center gap-3" data-testid="pin-display">
           {Array.from({ length: 4 }, (_, index) => (
             <span
@@ -65,10 +68,10 @@ export function PinSheet({
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2">
           <Button variant="secondary" onClick={onClose} disabled={busy}>
-            Not now
+            {t(lang, "notNow")}
           </Button>
           <Button data-testid="pin-submit" disabled={busy || pin.length !== 4} onClick={() => onSubmit(pin)}>
-            {busy ? "Sending…" : "Send"}
+            {busy ? t(lang, "sending") : t(lang, "send")}
           </Button>
         </div>
       </div>

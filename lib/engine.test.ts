@@ -8,6 +8,9 @@ import {
   markCollected,
   markPaid,
   placeOrder,
+  projectOrder,
+  rateAt,
+  READY_MS,
   usdCentsFromNet,
   type Ledger,
   type PayWith,
@@ -50,12 +53,15 @@ describe("pricing", () => {
     assert.equal(feeZarCents(200_000, "wallet"), 7_900);
     assert.equal(feeZarCents(200_000, "cash"), 9_400);
     assert.equal(usdCentsFromNet(192_100, 17850), 10_761);
+    const fx = rateAt(NOW);
     const built = buildQuote(200_000, "wallet", NOW, "q");
     assert.equal(built.ok, true);
     if (!built.ok) return;
-    assert.equal(built.quote.usdOutCents, 10_761);
+    assert.equal(built.quote.rateMilli, fx.rateMilli);
+    assert.equal(built.quote.usdOutCents, usdCentsFromNet(192_100, fx.rateMilli));
     assert.ok(built.quote.midUsdCents > built.quote.usdOutCents);
     assert.equal(built.quote.netZarCents, 192_100);
+    assert.notEqual(rateAt(NOW).rateMilli, rateAt(NOW + 20_000).rateMilli);
   });
 
   it("rejects amounts outside R100 to R5 000", () => {
@@ -66,15 +72,24 @@ describe("pricing", () => {
 });
 
 describe("placeOrder", () => {
-  it("charges the card once and releases a wallet voucher", () => {
+  it("charges the card once and walks Sent, In transit, Ready to collect", () => {
     const start = quoted(200_000, "wallet");
     const first = pay(start, "q1", "key-1", "card");
     assert.equal(first.ok, true);
     if (!first.ok) return;
     assert.equal(first.ledger.balanceZarCents, start.balanceZarCents - 200_000);
-    assert.equal(first.order.status, "in_wallet");
-    assert.equal(first.order.voucherAt, NOW);
-    assert.equal(first.order.usdOutCents, 10_761);
+    assert.equal(first.order.status, "sent");
+    assert.equal(first.order.voucherAt, null);
+    assert.equal(projectOrder(first.order, NOW + 3_500).status, "in_transit");
+    const ready = projectOrder(first.order, NOW + READY_MS);
+    assert.equal(ready.status, "ready");
+    assert.equal(ready.voucherAt, NOW + READY_MS);
+    const early = markCollected(first.ledger, first.order.ref, NOW + 1_000);
+    assert.equal(early.ok, false);
+    const collected = markCollected(first.ledger, first.order.ref, NOW + READY_MS);
+    assert.equal(collected.ok, true);
+    if (!collected.ok) return;
+    assert.equal(collected.order.status, "collected");
     assert.equal(first.ledger.quotes[0]?.consumedBy, first.order.ref);
   });
 
@@ -147,18 +162,16 @@ describe("placeOrder", () => {
     const paid = markPaid(placed.ledger, placed.order.ref, NOW + 1000);
     assert.equal(paid.ok, true);
     if (!paid.ok) return;
-    assert.equal(paid.order.status, "ready");
-    assert.ok(paid.order.voucherAt);
+    assert.equal(paid.order.status, "sent");
+    assert.equal(paid.order.voucherAt, null);
+    const notYet = markCollected(paid.ledger, placed.order.ref, NOW + 1000);
+    assert.equal(notYet.ok, false);
 
-    const again = markPaid(paid.ledger, placed.order.ref, NOW + 2000);
-    assert.equal(again.ok, true);
-    if (!again.ok) return;
-    assert.equal(again.order.voucherAt, paid.order.voucherAt);
-
-    const collected = markCollected(again.ledger, placed.order.ref, NOW + 3000);
+    const collected = markCollected(paid.ledger, placed.order.ref, NOW + 1000 + READY_MS);
     assert.equal(collected.ok, true);
     if (!collected.ok) return;
     assert.equal(collected.order.status, "collected");
+    assert.ok(collected.order.voucherAt);
   });
 });
 
@@ -167,7 +180,7 @@ describe("history", () => {
     const ledger = freshLedger();
     assert.equal(ledger.balanceZarCents, 428_040);
     assert.equal(ledger.orders[0]?.ref, "MUK-7H2K9");
-    assert.equal(ledger.orders[0]?.status, "cashed_out");
+    assert.equal(ledger.orders[0]?.status, "collected");
     assert.equal(ledger.orders[0]?.usdOutCents, 10_761);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { buildQuote, type Order, type PayWith, type Payout, type Quote } from "@/lib/engine";
+import { t, type Lang } from "@/lib/copy";
 import { useCorridor } from "@/components/corridor-context";
 import { day, usd, zar } from "@/lib/format";
 
@@ -19,6 +20,7 @@ type Screen =
 
 export function UssdScreen() {
   const corridor = useCorridor();
+  const lang = corridor.lang;
   const [screen, setScreen] = useState<Screen>({ name: "menu" });
   const [fault, setFault] = useState<string | null>(null);
 
@@ -33,14 +35,14 @@ export function UssdScreen() {
     setFault(null);
     const preview = buildQuote(amount, payout, Date.now(), "preview");
     if (!preview.ok) {
-      setScreen({ name: "note", body: "Amount must be from R100 to R5 000.\n\n0 Back" });
+      setScreen({ name: "note", body: `${t(lang, "amountError")}\n\n${t(lang, "ussdBack")}` });
       return;
     }
     const quote = await corridor.requestQuote(amount, payout);
     if (!quote) {
       setScreen({
         name: "note",
-        body: "NO SIGNAL\nRate not locked.\nCard not touched.\n\n0 Back",
+        body: `${t(lang, "ussdNoSignal")}\n\n${t(lang, "ussdBack")}`,
       });
       return;
     }
@@ -56,16 +58,16 @@ export function UssdScreen() {
     if (result.held || result.error === "offline") {
       setScreen({
         name: "note",
-        body: "HELD ON PHONE\nMoney has not left.\nAmai has not been told.\nSame order when signal returns.\n\n0 Menu",
+        body: `${t(lang, "ussdHeldBody")}\n\n${t(lang, "ussdMenu")}`,
       });
       return;
     }
     if (result.error === "bad_pin") {
-      setFault("Wrong PIN. Money stayed.");
+      setFault(t(lang, "ussdWrongPin"));
       setScreen({ name: "pin", quote, payWith, buffer: "" });
       return;
     }
-    setScreen({ name: "note", body: "Not sent. Nothing was charged.\n\n0 Menu" });
+    setScreen({ name: "note", body: `${t(lang, "ussdNotSent")}\n\n${t(lang, "ussdMenu")}` });
   }
 
   function onKey(key: string) {
@@ -141,9 +143,9 @@ export function UssdScreen() {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-[#102116] text-[#D7F5B8]">
       <pre className="min-h-0 flex-1 overflow-auto whitespace-pre-wrap px-4 py-4 font-mono text-[15px] leading-relaxed" data-testid="ussd-screen">
-        {renderScreen(screen, latest, corridor.balanceZarCents, Boolean(corridor.held))}
+        {renderScreen(screen, latest, corridor.balanceZarCents, Boolean(corridor.held), lang)}
         {fault ? `\n${fault}` : ""}
-        {corridor.busy ? "\n\nWorking… do not press again." : ""}
+        {corridor.busy ? `\n\n${t(lang, "ussdWorking")}` : ""}
       </pre>
       <div className="grid grid-cols-3 gap-1.5 p-3">
         {["1", "2", "3", "4", "5", "6", "7", "8", "9", "del", "0", "ok"].map((key) => (
@@ -162,42 +164,45 @@ export function UssdScreen() {
   );
 }
 
-function renderScreen(screen: Screen, latest: Order | undefined, balance: number, held: boolean) {
+function renderScreen(screen: Screen, latest: Order | undefined, balance: number, held: boolean, lang: Lang) {
   if (screen.name === "menu") {
-    return `Mukuru *130*567#\nCard ${zar(balance)}\n${held ? "\nHELD ORDER ON PHONE\n1 Finish the same order" : "\n1 Send home"}\n2 Last send\n3 Help`;
+    return `Mukuru *120#\n${t(lang, "ussdLive")}\nCard ${zar(balance)}\n${held ? `\n${t(lang, "ussdHeldBody").split("\n")[0]}\n${t(lang, "ussdFinish")}` : `\n${t(lang, "ussdSend")}`}\n${t(lang, "ussdLast")}\n${t(lang, "ussdHelp")}`;
   }
   if (screen.name === "amount") {
-    return `Send to Amai Rudo\n\n1 Same as Sep  R2000\n2 Other amount\n0 Back`;
+    return `Amai Rudo\n\n${t(lang, "ussdSame")}\n${t(lang, "ussdOther")}\n${t(lang, "ussdBack")}`;
   }
   if (screen.name === "custom") {
-    return `Amount in rands\nR${screen.buffer || "0"}\n\nType, then OK\n0 Back`;
+    return `${t(lang, "ussdAmount")}\nR${screen.buffer || "0"}\n\n${t(lang, "ussdTypeOk")}\n${t(lang, "ussdBack")}`;
   }
   if (screen.name === "payout") {
-    return `R${(screen.amount / 100).toFixed(0)} for Amai\n\n1 Her wallet\n2 Cash at booth\n0 Back`;
+    return `R${(screen.amount / 100).toFixed(0)}\n\n${t(lang, "ussdWallet")}\n${t(lang, "ussdBooth")}\n${t(lang, "ussdBack")}`;
   }
   if (screen.name === "review") {
     const quote = screen.quote;
-    return `Amai gets ${usd(quote.usdOutCents)}\nYou pay ${zar(quote.amountZarCents)}\nFee ${zar(quote.feeZarCents)}\n${quote.payout === "wallet" ? "Wallet" : "Booth cash"}\n\n1 Pay from card\n2 Pay at PEP\n0 Menu`;
+    return `${t(lang, "ussdAmaiGets")} ${usd(quote.usdOutCents)}\n${t(lang, "ussdYouPay")} ${zar(quote.amountZarCents)}\n${t(lang, "ussdFee")} ${zar(quote.feeZarCents)}\n${t(lang, quote.payout === "wallet" ? "herWallet" : "boothCash")}\n\n${t(lang, "ussdPayCard")}\n${t(lang, "ussdPayPep")}\n${t(lang, "ussdMenu")}`;
   }
   if (screen.name === "pin") {
-    return `Enter PIN\n${"•".repeat(screen.buffer.length)}${"-".repeat(4 - screen.buffer.length)}\nDemo 2580\n\nOK to send\n0 Menu`;
+    return `${t(lang, "ussdEnterPin")}\n${"•".repeat(screen.buffer.length)}${"-".repeat(4 - screen.buffer.length)}\n${t(lang, "ussdDemoPin")}\n\n${t(lang, "ussdOkSend")}\n${t(lang, "ussdMenu")}`;
   }
   if (screen.name === "result") {
     const order = screen.order;
-    const tail =
-      order.status === "awaiting_payment"
-        ? "Amai has no voucher\nuntil PEP is paid."
-        : order.payout === "wallet"
-          ? "In Amai's wallet."
-          : "Booth voucher is ready.";
-    return `SENT ${order.ref}\n${usd(order.usdOutCents)}\n${tail}\nCard ${zar(balance)}\n\n0 Menu`;
+    const tail = order.status === "awaiting_payment" ? t(lang, "ussdNoVoucher") : t(lang, "ussdNotReady");
+    return `${t(lang, "receiptSent")} ${order.ref}\n${usd(order.usdOutCents)}\n${tail}\nCard ${zar(balance)}\n\n${t(lang, "ussdMenu")}`;
   }
   if (screen.name === "last" && latest) {
-    return `Last send\n${latest.ref}\n${day(latest.createdAt)}\n${usd(latest.usdOutCents)}\n${latest.status.replaceAll("_", " ")}\n\n0 Menu`;
+    return `${t(lang, "ussdLastTitle")}\n${latest.ref}\n${day(latest.createdAt)}\n${usd(latest.usdOutCents)}\n${t(lang, statusKey(latest.status))}\n\n${t(lang, "ussdMenu")}`;
   }
   if (screen.name === "help") {
-    return `Voucher + ID to collect.\nBooth collection is free.\nMukuru will not ask\nfor a PIN by phone.\n\n0 Menu`;
+    return `${t(lang, "ussdHelpBody")}\n\n${t(lang, "ussdMenu")}`;
   }
   if (screen.name === "note") return screen.body;
-  return `No send yet.\n\n0 Menu`;
+  return `${t(lang, "ussdNone")}\n\n${t(lang, "ussdMenu")}`;
+}
+
+function statusKey(status: Order["status"]) {
+  if (status === "in_transit") return "inTransit" as const;
+  if (status === "ready") return "ready" as const;
+  if (status === "collected") return "collected" as const;
+  if (status === "awaiting_payment") return "waitingPay" as const;
+  return "sent" as const;
 }

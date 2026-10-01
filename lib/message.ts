@@ -8,6 +8,8 @@ export function voucherMessage(order: Order): string {
       ? `${dollars} iri muMukuru Wallet.\n${dollars} is in your Mukuru Wallet.`
       : `${dollars} iri paOrange Booth, Borrowdale.\n${dollars} is waiting at the Orange Booth in Borrowdale.`;
   return [
+    "Your money is ready to collect.",
+    "Mari yako yagadzirira kutambirwa.",
     "Amai, mari yasvika.",
     where,
     `Nhamba / Number: ${order.ref}`,

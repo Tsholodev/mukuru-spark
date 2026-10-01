@@ -1,45 +1,47 @@
 "use client";
 
 import type { Order } from "@/lib/engine";
+import { t } from "@/lib/copy";
 import { day, usd, zar } from "@/lib/format";
 import { amai } from "@/lib/profile";
 import { useCorridor } from "@/components/corridor-context";
+import { StatusTrack } from "@/components/status-track";
 import { PhoneShell } from "@/components/thandi-phone";
 import { Button } from "@/components/ui/button";
 
 export function AmaiPhone() {
   const corridor = useCorridor();
+  const lang = corridor.lang;
   const active = corridor.orders.find((order) => !order.idempotencyKey.startsWith("seed-"));
   const september = corridor.orders.find((order) => order.ref === "MUK-7H2K9");
 
   return (
     <PhoneShell eyebrow="AMAI · HARARE" tone="receive">
       <div className="border-b border-[#E4EEE6] bg-[#F4F8F5] px-4 pb-4 pt-10">
-        <p className="text-xs font-semibold tracking-[0.14em] text-[#3E6B52]">MUKURU VOUCHER</p>
-        <h2 className="mt-1 text-xl font-semibold tracking-tight">Mhoro, Amai.</h2>
-        <p className="text-sm text-[#4E6558]">This phone only changes when the money is real.</p>
+        <p className="text-xs font-semibold tracking-[0.14em] text-[#3E6B52]">{t(lang, "voucherLabel")}</p>
+        <h2 className="mt-1 text-xl font-semibold tracking-tight">{t(lang, "mhoroAmai")}</h2>
+        <p className="text-sm text-[#4E6558]">{t(lang, "phoneChanges")}</p>
       </div>
       <div className="chat-scroll min-h-0 flex-1 overflow-y-auto bg-[#F7FBF8] px-4 py-4">
         {corridor.loading ? (
-          <p className="text-sm text-[#4E6558]">Looking for a voucher…</p>
+          <p className="text-sm text-[#4E6558]">{t(lang, "looking")}</p>
         ) : active ? (
           <ActiveVoucher order={active} onCollect={() => void corridor.markCollected(active.ref)} busy={corridor.busy} />
         ) : (
           <div data-testid="amai-empty">
-            <p className="text-2xl font-semibold tracking-tight">Nothing new for October.</p>
-            <p className="mt-3 text-[15px] leading-relaxed text-[#3E5146]">
-              A voucher shows up here only after Thandi&apos;s payment is real. A screenshot is not a payment.
-            </p>
-            <p className="mt-3 text-[15px] leading-relaxed text-[#3E5146]">
-              Nhamba yekutora inoonekwa chete kana mari yasvika. Screenshot haisi mari.
-            </p>
+            <p className="text-2xl font-semibold tracking-tight">{t(lang, "nothingNew")}</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-[#3E5146]">{t(lang, "screenshot")}</p>
+            <p className="mt-3 text-[15px] leading-relaxed text-[#3E5146]">{t(lang, "screenshotSn")}</p>
             {september && (
               <div className="mt-5 rounded-3xl border border-[#D7E6DC] bg-white p-4">
-                <p className="text-xs font-semibold tracking-[0.14em] text-[#3E6B52]">SEPTEMBER · CASHED OUT</p>
+                <p className="text-xs font-semibold tracking-[0.14em] text-[#3E6B52]">{t(lang, "september")}</p>
                 <p className="mt-2 text-2xl font-semibold tabular-nums">{usd(september.usdOutCents)}</p>
                 <p className="mt-1 text-sm text-[#4E6558]">
-                  {september.ref} · wallet · {day(september.collectedAt ?? september.createdAt)}
+                  {september.ref} · {t(lang, "herWallet")} · {day(september.collectedAt ?? september.createdAt)}
                 </p>
+                <div className="mt-3">
+                  <StatusTrack status="collected" lang={lang} icons={corridor.icons} />
+                </div>
               </div>
             )}
           </div>
@@ -58,61 +60,66 @@ function ActiveVoucher({
   onCollect: () => void;
   busy: boolean;
 }) {
-  if (!order.voucherAt) {
+  const { lang, icons } = useCorridor();
+
+  if (order.status === "awaiting_payment" || !order.paidAt) {
     return (
       <div data-testid="amai-status">
-        <p className="text-xs font-semibold tracking-[0.14em] text-[#8A5A00]">NOT A VOUCHER</p>
-        <p className="mt-2 text-2xl font-semibold tracking-tight">Mukuru has not been paid.</p>
-        <p className="mt-3 text-[15px] leading-relaxed">
-          Thandi started an order. There is no collection number until the cash is confirmed. Do not hand anyone goods
-          against a screenshot.
-        </p>
-        <p className="mt-3 text-[15px] leading-relaxed">
-          Hapana nhamba yekutora. Usapa chinhu ne screenshot.
-        </p>
+        <p className="text-xs font-semibold tracking-[0.14em] text-[#8A5A00]">{t(lang, "waitingPay")}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight">{t(lang, "notPaidTitle")}</p>
+        <p className="mt-3 text-[15px] leading-relaxed">{t(lang, "notPaidBody")}</p>
+        <p className="mt-3 text-[15px] leading-relaxed">{t(lang, "screenshot")}</p>
+        <p className="mt-3 text-[15px] leading-relaxed">{t(lang, "screenshotSn")}</p>
       </div>
     );
   }
 
-  const settled = order.status === "collected" || order.status === "cashed_out";
+  if (order.status === "sent" || order.status === "in_transit") {
+    return (
+      <div data-testid="amai-status">
+        <p className="text-xs font-semibold tracking-[0.14em] text-[#8A5A00]">{t(lang, "movingTitle")}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight">{usd(order.usdOutCents)}</p>
+        <div className="mt-4">
+          <StatusTrack status={order.status} lang={lang} icons={icons} />
+        </div>
+        <p className="mt-4 text-[15px] leading-relaxed">{t(lang, "onTheWay")}</p>
+        <p className="mt-3 text-[15px] leading-relaxed">{t(lang, "notReadyYet")}</p>
+      </div>
+    );
+  }
+
+  const ready = order.status === "ready";
   const wallet = order.payout === "wallet";
 
   return (
     <div data-testid="amai-status">
       <p className="text-xs font-semibold tracking-[0.14em] text-[#3E6B52]">
-        {order.status === "in_wallet"
-          ? "IN YOUR WALLET"
-          : order.status === "ready"
-            ? "READY TO COLLECT"
-            : order.status === "cashed_out"
-              ? "CASHED OUT"
-              : "COLLECTED"}
+        {ready ? t(lang, "ready") : t(lang, "collected")}
       </p>
-      <p className="mt-2 text-4xl font-semibold tracking-tight tabular-nums">{usd(order.usdOutCents)}</p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight" data-testid="ready-notice">
+        {ready ? t(lang, "readyNotice") : t(lang, "collected")}
+      </p>
+      <p className="mt-2 text-[15px] leading-relaxed">{ready ? t(lang, "readyNoticeSn") : t(lang, "collected")}</p>
+      <div className="mt-4">
+        <StatusTrack status={order.status} lang={lang} icons={icons} />
+      </div>
+      <p className="mt-4 text-4xl font-semibold tracking-tight tabular-nums">{usd(order.usdOutCents)}</p>
       <p className="mt-3 font-mono text-3xl font-medium tracking-wide">{order.ref}</p>
       <p className="mt-4 text-[15px] leading-relaxed">
-        {wallet
-          ? "This transfer is in your Mukuru Wallet. Taking the notes at an Orange Booth is free."
-          : `Collect the notes at ${amai.booth}. Bring the ID that says ${amai.name}.`}
+        {wallet ? t(lang, "freeCashout") : `${t(lang, "bringId")} ${amai.booth}.`}
       </p>
-      <p className="mt-3 text-[15px] leading-relaxed">
-        {wallet
-          ? "Mari iri muWallet. Kubuda kwemari pabooth hakubhadharwi."
-          : "Uya neID inoti Rudo Ncube. Kutora hakubhadharwi."}
-      </p>
-      <p className="mt-3 text-[15px] leading-relaxed">
-        Mukuru will not phone you to ask for a PIN, a card number, or this voucher.
-      </p>
-      <p className="mt-1 text-sm text-[#4E6558]">Mukuru haikumbiri PIN panhare.</p>
+      <p className="mt-3 text-[15px] leading-relaxed">{wallet ? t(lang, "walletSn") : t(lang, "bringIdSn")}</p>
+      <p className="mt-3 text-[15px] leading-relaxed">{t(lang, "noPin")}</p>
+      <p className="mt-1 text-sm text-[#4E6558]">{t(lang, "noPinSn")}</p>
       <p className="mt-4 text-sm text-[#4E6558]">
         {order.payWith === "card"
-          ? `From Thandi · ${zar(order.amountZarCents)} left her card.`
-          : "From Thandi · paid in cash at PEP. The card was not used."}{" "}
-        ID on file {amai.idMasked}.
+          ? t(lang, "fromThandiCard", { amount: zar(order.amountZarCents) })
+          : t(lang, "fromThandiPep")}{" "}
+        {t(lang, "idOnFile", { id: amai.idMasked })}
       </p>
-      {!settled && (
+      {ready && (
         <Button className="mt-4 w-full" variant="dark" disabled={busy} data-testid="amai-collect" onClick={onCollect}>
-          {wallet ? "I cashed out the notes" : "I have the cash"}
+          {icons ? `✓  ${t(lang, "collectedBtn")}` : t(lang, "collectedBtn")}
         </Button>
       )}
     </div>

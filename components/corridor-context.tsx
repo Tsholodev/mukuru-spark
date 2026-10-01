@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import type { CopyKey, Lang } from "@/lib/copy";
 import type { ErrorCode, Order, PayWith, Payout, Quote } from "@/lib/engine";
 
 export type Signal = "good" | "weak" | "off";
@@ -21,6 +22,10 @@ export type Held = {
 };
 
 const HELD_KEY = "mukuru-home-held-v1";
+const LANG_KEY = "mukuru-home-lang";
+const ICONS_KEY = "mukuru-home-icons";
+
+export type Fx = { rateMilli: number; midMilli: number };
 
 type SubmitResult =
   | { ok: true; order: Order }
@@ -38,7 +43,12 @@ type CorridorValue = {
   orders: Order[];
   openQuote: Quote | null;
   held: Held | null;
-  notice: string | null;
+  notice: CopyKey | null;
+  lang: Lang;
+  setLang: (lang: Lang) => void;
+  icons: boolean;
+  setIcons: (icons: boolean) => void;
+  fx: Fx | null;
   demoId: number;
   clearNotice: () => void;
   requestQuote: (amountZarCents: number, payout: Payout) => Promise<Quote | null>;
@@ -71,19 +81,34 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [openQuote, setOpenQuote] = useState<Quote | null>(null);
   const [held, setHeld] = useState<Held | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<CopyKey | null>(null);
+  const [lang, setLangState] = useState<Lang>("en");
+  const [icons, setIconsState] = useState(false);
+  const [fx, setFx] = useState<Fx | null>(null);
   const [demoId, setDemoId] = useState(0);
 
   const signalRef = useRef(signal);
   const heldRef = useRef(held);
+  const ordersRef = useRef(orders);
   const pinRef = useRef<string | null>(null);
   const busyRef = useRef(false);
   signalRef.current = signal;
   heldRef.current = held;
+  ordersRef.current = orders;
 
   function setSignal(next: Signal) {
     setSignalState(next);
     signalRef.current = next;
+  }
+
+  function setLang(next: Lang) {
+    setLangState(next);
+    localStorage.setItem(LANG_KEY, next);
+  }
+
+  function setIcons(next: boolean) {
+    setIconsState(next);
+    localStorage.setItem(ICONS_KEY, next ? "1" : "0");
   }
 
   function rememberHeld(next: Held | null) {
@@ -93,10 +118,17 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
     else localStorage.removeItem(HELD_KEY);
   }
 
-  function applyPayload(payload: { balanceZarCents: number; orders: Order[]; openQuote: Quote | null }) {
+  function applyPayload(payload: {
+    balanceZarCents: number;
+    orders: Order[];
+    openQuote: Quote | null;
+    fx?: Fx | null;
+  }) {
     setBalance(payload.balanceZarCents);
     setOrders(payload.orders);
+    ordersRef.current = payload.orders;
     setOpenQuote(payload.openQuote);
+    if (payload.fx) setFx(payload.fx);
   }
 
   async function refresh() {
@@ -139,9 +171,41 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
     } catch {
       localStorage.removeItem(HELD_KEY);
     }
+    const storedLang = localStorage.getItem(LANG_KEY);
+    if (storedLang === "en" || storedLang === "sn") setLangState(storedLang);
+    if (localStorage.getItem(ICONS_KEY) === "1") setIconsState(true);
     void refresh();
     // Load once. refresh closes over the latest setters and must not re-run every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let timer = 0;
+    let stopped = false;
+    async function tick() {
+      if (stopped) return;
+      if (signalRef.current !== "off") {
+        try {
+          const response = await fetch("/api/corridor", { cache: "no-store" });
+          if (response.ok) {
+            const payload = await response.json();
+            applyPayload(payload);
+            setLoadError(false);
+          }
+        } catch {
+          setLoadError(true);
+        }
+      }
+      const moving = ordersRef.current.some(
+        (order) => order.status === "sent" || order.status === "in_transit",
+      );
+      timer = window.setTimeout(tick, moving ? 2000 : 8000);
+    }
+    timer = window.setTimeout(tick, 8000);
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -154,7 +218,7 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
   async function requestQuote(amountZarCents: number, payout: Payout) {
     setNotice(null);
     if (signalRef.current === "off") {
-      setNotice("The rate cannot lock with no signal. Your card has not been touched.");
+      setNotice("noSignalLock");
       return null;
     }
     busyRef.current = true;
@@ -167,14 +231,14 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
       });
       const body = await response.json();
       if (!response.ok) {
-        setNotice("That amount cannot be sent. Stay between R100 and R5 000.");
+        setNotice("badAmount");
         return null;
       }
       setOpenQuote(body.quote);
-      setNotice(signalRef.current === "weak" ? "Rate locked. It was slow, and it went through once." : null);
+      setNotice(signalRef.current === "weak" ? "rateLockedSlow" : null);
       return body.quote as Quote;
     } catch {
-      setNotice("The signal dropped before the rate could lock. Your card has not been touched.");
+      setNotice("signalDropped");
       return null;
     } finally {
       busyRef.current = false;
@@ -190,7 +254,7 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
     pinRef.current = pin;
     busyRef.current = true;
     setBusy(true);
-    setNotice(signalRef.current === "weak" ? "The signal is thin. This is still working. Do not tap again." : null);
+    setNotice(signalRef.current === "weak" ? "thinSignal" : null);
     try {
       const response = await netFetch("/api/orders", {
         method: "POST",
@@ -206,22 +270,22 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         if (body.error === "bad_pin") {
           pinRef.current = null;
-          setNotice("That PIN is wrong. The money stayed on the card.");
+          setNotice("badPin");
           return { ok: false, error: "bad_pin" };
         }
         rememberHeld(null);
         pinRef.current = null;
         if (body.error === "quote_expired") {
           setOpenQuote(null);
-          setNotice("Those 15 minutes ran out. Lock the rate again. Nothing was charged.");
+          setNotice("quoteExpired");
         } else if (body.error === "insufficient") {
-          setNotice("The card does not have enough for this amount. Nothing was charged.");
+          setNotice("insufficient");
         } else if (body.error === "quote_used") {
           setOpenQuote(null);
-          setNotice("This quote was already used. Check the send below before trying again.");
+          setNotice("quoteUsed");
           await refresh();
         } else {
-          setNotice("That send did not go through. Nothing was charged.");
+          setNotice("sendFailed");
         }
         return { ok: false, error: body.error ?? "bad_request" };
       }
@@ -233,7 +297,7 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
       setNotice(null);
       return { ok: true, order: body.order };
     } catch {
-      setNotice("Held on this phone. Your money has not left the card, and Amai has not been told.");
+      setNotice("heldNotice");
       return { ok: false, error: "offline", held: true };
     } finally {
       busyRef.current = false;
@@ -296,6 +360,11 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
       openQuote,
       held,
       notice,
+      lang,
+      setLang,
+      icons,
+      setIcons,
+      fx,
       demoId,
       clearNotice: () => setNotice(null),
       requestQuote,
@@ -307,7 +376,7 @@ export function CorridorProvider({ children }: { children: ReactNode }) {
     }),
     // The actions close over refs deliberately. State listed here refreshes the snapshot.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [signal, surface, loading, loadError, busy, balanceZarCents, orders, openQuote, held, notice, demoId],
+    [signal, surface, loading, loadError, busy, balanceZarCents, orders, openQuote, held, notice, lang, icons, fx, demoId],
   );
 
   return <CorridorContext.Provider value={value}>{children}</CorridorContext.Provider>;
