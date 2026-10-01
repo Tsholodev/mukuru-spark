@@ -5,21 +5,30 @@ import { freshLedger, type Ledger } from "./engine";
 const file = path.join(process.cwd(), "data", "ledger.json");
 
 let queue: Promise<unknown> = Promise.resolve();
+let memory: Ledger | null = null;
 
 async function read(): Promise<Ledger> {
+  if (memory) return structuredClone(memory);
   try {
     const raw = await fs.readFile(file, "utf8");
-    return JSON.parse(raw) as Ledger;
+    memory = JSON.parse(raw) as Ledger;
+    return structuredClone(memory);
   } catch {
-    return freshLedger();
+    memory = freshLedger();
+    return structuredClone(memory);
   }
 }
 
 async function write(ledger: Ledger) {
-  await fs.mkdir(path.dirname(file), { recursive: true });
-  const tmp = `${file}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(ledger));
-  await fs.rename(tmp, file);
+  memory = structuredClone(ledger);
+  try {
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(ledger));
+    await fs.rename(tmp, file);
+  } catch {
+    // The demo still runs from memory when the disk is read-only.
+  }
 }
 
 export function updateLedger<T>(fn: (ledger: Ledger) => { ledger: Ledger; result: T }): Promise<T> {
