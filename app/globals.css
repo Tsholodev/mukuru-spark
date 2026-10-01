@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-manrope);
+  --font-mono: var(--font-plex);
+}
+
+body {
+  background: #1a1410;
+  color: #241910;
+  font-family: var(--font-sans), "Segoe UI", sans-serif;
+}
+
+.chat-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #e0d3c8 transparent;
+}
+
+::selection {
+  background: #ffd7c2;
+}
