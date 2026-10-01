@@ -55,7 +55,13 @@ export function ThandiPhone() {
   useEffect(() => {
     const node = chatRef.current;
     if (!node) return;
-    node.scrollTo({ top: node.scrollHeight });
+    const quote = node.querySelector("[data-testid='quote-card']");
+    if (quote instanceof HTMLElement) {
+      const delta = quote.getBoundingClientRect().top - node.getBoundingClientRect().top;
+      node.scrollTop += delta - 8;
+    } else {
+      node.scrollTop = node.scrollHeight;
+    }
   }, [said.length, step, corridor.openQuote?.id, corridor.held, corridor.notice, sessionCount, corridor.busy]);
   const history = corridor.orders.filter((order) => order.idempotencyKey.startsWith("seed-"));
   const sessionOrders = corridor.orders.filter((order) => !order.idempotencyKey.startsWith("seed-"));
@@ -172,20 +178,11 @@ export function ThandiPhone() {
                 {line}
               </Bubble>
             ))}
-            {step === "amount" && preview && (
-              <QuoteCard quote={preview} locked={false} busy={corridor.busy} onLock={() => void lockDraft()} />
-            )}
+            {step === "amount" && preview && <QuoteCard quote={preview} locked={false} busy={corridor.busy} />}
             {step === "amount" && custom.trim() && !preview && (
               <p className="text-sm text-[#9F2D20]">Use an amount from R100 to R5 000, like 1500 or 1500.50.</p>
             )}
-            {payableQuote && step !== "amount" && (
-              <QuoteCard
-                quote={payableQuote}
-                locked
-                busy={corridor.busy}
-                onPay={(payWith) => openPin(payWith)}
-              />
-            )}
+            {payableQuote && step !== "amount" && <QuoteCard quote={payableQuote} locked busy={corridor.busy} />}
             {corridor.held && (
               <article className="rounded-3xl border border-[#E7C27A] bg-[#FFF8E8] p-4" data-testid="held-card">
                 <p className="text-xs font-semibold tracking-[0.14em] text-[#8A5A00]">HELD ON THIS PHONE</p>
@@ -247,7 +244,25 @@ export function ThandiPhone() {
           </div>
 
           <div className="border-t border-[#F0E2D6] bg-[#FFF9F4] p-3">
-            {step === "choose" && !corridor.held && (
+            {step === "choose" && !corridor.held && payableQuote && (
+              <div className="grid gap-2">
+                <Button data-testid="pay-card" disabled={corridor.busy} onClick={() => openPin("card")}>
+                  Pay {zar(payableQuote.amountZarCents)} from the card
+                </Button>
+                <Button
+                  variant="secondary"
+                  data-testid="pay-retail"
+                  disabled={corridor.busy}
+                  onClick={() => openPin("retail")}
+                >
+                  Pay cash at PEP instead
+                </Button>
+                <p className="text-center text-xs leading-relaxed text-[#9A7B68]">
+                  The card is charged once. PEP does not tell Amai until the till confirms the cash.
+                </p>
+              </div>
+            )}
+            {step === "choose" && !corridor.held && !payableQuote && (
               <div className="grid gap-2">
                 <Button data-testid="same-september" disabled={corridor.busy} onClick={() => void sameAsSeptember()}>
                   Same as September · R2 000
@@ -329,9 +344,14 @@ export function ThandiPhone() {
                     Booth cash
                   </button>
                 </div>
-                <Button variant="ghost" onClick={() => setStep("choose")}>
-                  Back
-                </Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button variant="ghost" onClick={() => setStep("choose")}>
+                    Back
+                  </Button>
+                  <Button data-testid="lock-rate" disabled={corridor.busy || !preview} onClick={() => void lockDraft()}>
+                    {corridor.busy ? "Locking…" : "Lock this rate"}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
