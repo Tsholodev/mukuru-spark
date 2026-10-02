@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { normalizePhone } from "./passwords.ts";
+import { readyDb } from "./db.ts";
 import { calculateTransferAmounts } from "./transfer-calculation.ts";
 import { canTransitionTransfer } from "./transfer-status.ts";
 import { generateCollectionCode } from "./transfers.ts";
@@ -21,6 +22,29 @@ const notification: TransferNotification = {
   collectionLocation: "Participating store",
   ussdCode: "*120#",
 };
+
+describe("database initialization", () => {
+  it("allows initialization to retry after a failed first attempt", async () => {
+    const previousUrl = process.env.DATABASE_URL;
+    const dbGlobal = globalThis as typeof globalThis & { __sendaReady?: Promise<void> };
+    const previousReady = dbGlobal.__sendaReady;
+    delete process.env.DATABASE_URL;
+    dbGlobal.__sendaReady = undefined;
+
+    try {
+      const firstAttempt = readyDb();
+      await assert.rejects(firstAttempt, /DATABASE_URL is required/);
+
+      const retry = readyDb();
+      assert.notStrictEqual(retry, firstAttempt);
+      await assert.rejects(retry, /DATABASE_URL is required/);
+    } finally {
+      if (previousUrl === undefined) delete process.env.DATABASE_URL;
+      else process.env.DATABASE_URL = previousUrl;
+      dbGlobal.__sendaReady = previousReady;
+    }
+  });
+});
 
 describe("registered phone validation", () => {
   it("normalizes supported international and country-local phone numbers", () => {

@@ -2,6 +2,16 @@
 
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
+import { getCountries, getCountryCallingCode } from "libphonenumber-js";
+
+const countryNames = new Intl.DisplayNames(["en"], { type: "region" });
+const countries = getCountries()
+  .map((code) => ({
+    code,
+    name: countryNames.of(code) ?? code,
+    callingCode: getCountryCallingCode(code),
+  }))
+  .sort((left, right) => left.name.localeCompare(right.name));
 
 export default function RegisterPage() {
   const [name, setName] = useState("");
@@ -72,8 +82,13 @@ export default function RegisterPage() {
             <input required type="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1 h-12 w-full rounded-lg border border-white/20 bg-white/10 px-3 text-base outline-none" />
           </label>
           <label className="block text-sm text-white">
-            Country code
-            <input required minLength={2} maxLength={2} autoCapitalize="characters" value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} className="mt-1 h-12 w-full rounded-lg border border-white/20 bg-white/10 px-3 text-base uppercase outline-none" />
+            Phone country / calling code
+            <select required value={country} onChange={(event) => setCountry(event.target.value)} className="mt-1 h-12 w-full rounded-lg border border-white/20 bg-[#1E1713] px-3 text-base outline-none">
+              <option value="">Select a country</option>
+              {countries.map(({ code, name, callingCode }) => (
+                <option key={code} value={code}>{name} (+{callingCode})</option>
+              ))}
+            </select>
           </label>
           <label className="block text-sm text-white sm:col-span-2">
             City

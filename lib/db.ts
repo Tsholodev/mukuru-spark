@@ -28,7 +28,11 @@ export function withDb<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
 
 export function readyDb() {
   if (!dbGlobal.__sendaReady) {
-    dbGlobal.__sendaReady = migrate();
+    const initialization = migrate();
+    dbGlobal.__sendaReady = initialization;
+    void initialization.catch(() => {
+      if (dbGlobal.__sendaReady === initialization) dbGlobal.__sendaReady = undefined;
+    });
   }
   return dbGlobal.__sendaReady;
 }
