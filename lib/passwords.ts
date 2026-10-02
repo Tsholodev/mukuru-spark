@@ -1,4 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from "crypto";
+import { isSupportedCountry, parsePhoneNumberFromString, type CountryCode } from "libphonenumber-js";
 
 export function hashSecret(secret: string): string {
   const salt = randomBytes(16).toString("hex");
@@ -15,9 +16,14 @@ export function verifySecret(secret: string, stored: string): boolean {
   return timingSafeEqual(expected, actual);
 }
 
-export function normalizePhone(input: string): string {
-  const digits = input.replace(/\D/g, "");
-  if (digits === "27790001111" || digits === "0790001111") return "0790001111";
-  if (digits === "263774418000" || digits === "0774418000") return "0774418000";
-  return digits;
+export function normalizePhone(input: string, country?: string): string | null {
+  if (country !== undefined && !isSupportedCountry(country)) return null;
+  const parsed = parsePhoneNumberFromString(input, country as CountryCode | undefined);
+  return parsed?.isValid() ? parsed.number : null;
+}
+
+export function maskPhone(phoneNumber: string): string {
+  const visibleDigits = 4;
+  const digits = phoneNumber.replace(/\D/g, "");
+  return `${"•".repeat(Math.max(0, digits.length - visibleDigits))}${digits.slice(-visibleDigits)}`;
 }

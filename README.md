@@ -1,55 +1,42 @@
-# Mukuru Home
+# Senda
 
-A SheHacks prototype for Mukuru's Challenge A, **Money Home, Made Simple**.
+A 48-hour hackathon prototype for Challenge A, **Money Home, Made Simple**.
 
-Thandi works in Johannesburg and sends money to her mother in Harare every month. Her phone is cheap, her signal drops, and she reads English more easily than she speaks it. Mukuru Home is the payday send: English and ChiShona, a plain Android screen and a USSD *120# screen, a status line from Sent to Collected, and a voucher that appears in Harare only when the money is ready to collect.
+## Flow
 
-This is a student prototype. It is not the Mukuru app. The rate moves on a timer so the lock is visible. It is not Mukuru's live quote.
+1. Sender and recipient register accounts with their own country and phone number.
+2. Sender looks up the recipient by registered phone number.
+3. The server fetches an exchange rate and calculates amount, fee, and destination amount.
+4. Sender reviews the quote and explicitly confirms it.
+5. The server persists a transfer and its initial `SENT` event, then requests an SMS.
+6. The recipient dashboard polls persisted transfers/events; a basic USSD service can check transfers and request a replacement code.
+7. Store-agent endpoints record `IN_TRANSIT` and `READY_TO_COLLECT`; verified collection records `COLLECTED`.
 
-## Accounts and database
+## Configure
 
-Sign-in is checked on the server. Passwords are hashed. The session cookie is HTTP-only. Thandi cannot open Amai's page, and Amai cannot send from Thandi's card.
+Copy `.env.example` to `.env.local`, supply a PostgreSQL `DATABASE_URL`, and configure the transfer currencies, fee basis points, and collection location. Senda does not seed demo accounts or use an in-memory runtime database. Create sender/recipient accounts through `/register`.
 
-| Person | Phone | Sign-in | Home |
-| --- | --- | --- | --- |
-| Thandi | 079 000 1111 | 25802580 | /home |
-| Amai | 077 441 8000 | 4418 | /collect |
+The existing `users.balance_cents` is checked and debited atomically when a sender confirms. New registrations start with a zero balance; this prototype does not include a card/bank funding integration, so a funded account must be provisioned through an approved payment source before it can send. Do not credit balances from client input.
 
-The card PIN for a send is still **2580**. That is separate from the sign-in secret.
+Set `COLLECTION_CODE_SECRET` and `STORE_AGENT_SECRET` to unique random secrets. For carrier SMS, set all three Twilio variables: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM`. Without provider credentials, development records `SMS_REQUESTED`; it does not report successful delivery. SMS events store safe provider status/metadata, not message bodies or collection codes.
 
-Orders, quotes, sessions, and USSD sessions are rows in Postgres. The schema is `supabase/schema.sql`. This environment runs Postgres locally. Supabase is hosted Postgres: create a project, set `DATABASE_URL` to the connection string from Project Settings → Database, set `DATABASE_SSL=require`, and run the schema SQL if the app user cannot create tables. The app does not use a JSON file as the ledger anymore.
+`EXCHANGE_RATE_API_URL` must be an API endpoint that returns a successful JSON document with a `rates` object keyed by destination currency. Database migrations are applied from `supabase/schema.sql` at runtime.
 
-`*120#` calls the same order API as the web account. Open it from Thandi's phone, from Amai's page, or at `/ussd`.
+The store screen at `/store` is a protected prototype terminal, not a live PEP/Shoprite POS integration. Retail payout requires a provider/partner integration before production use.
 
-## Run it
+## Run
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open [http://127.0.0.1:3847](http://127.0.0.1:3847). Panel notes are at [/pitch](http://127.0.0.1:3847/pitch).
-
-Demo PIN: **2580**. Reset payday puts the card back to R4 280.40.
-
-## Demo
-
-1. Read September on both phones. October is empty on Amai's side.
-2. Tap **Same as September**. The large number is what she receives. The fee is inside the amount.
-3. Set Thandi&apos;s signal to **None**, enter the PIN, and watch the card stay still.
-4. Set the signal to **Full**. The same order completes once. The status walks Sent, In transit, then Ready to collect. Amai's phone says "Your money is ready to collect."
-5. Optional: switch to ChiShona or Icons. Optional: pay at PEP instead, and confirm Amai has no voucher until the panel marks the cash received and the status reaches ready.
-
-## Tests
+Open [http://localhost:3847](http://localhost:3847). Run unit tests with:
 
 ```bash
 npm test
 ```
 
-The tests cover the fee, the floored dollar amount, a rate that changes, the Sent to Collected walk, a wrong PIN, an expired rate lock, a retry that must not charge twice, and a retail payment that must not release a voucher early.
+## Boundaries
 
-## What is real, and what is a fixture
-
-Real Mukuru context used to shape the journey: the Mukuru Card, retail pay-in with an order number, Mukuru Wallet, Orange Booth collection with an ID, free collection, and WhatsApp. Mukuru's live USSD code is `*130*567#`. This demo dials `*120#`, because that is what the brief asks to simulate.
-
-Fixtures: the moving rate (it steps around a mid rate near `R17.42`, with the customer rate a bit higher), the fee bands, the card balance, the masked ID, and the Borrowdale booth standing in for a live Harare location. September's send stays at `$107.61`.
+The USSD endpoint is a lightweight service boundary; it is not connected to a mobile-network USSD aggregator. Twilio `SMS_SENT` means the provider accepted the request, not that the handset confirmed delivery. Transfer/event APIs require a reachable PostgreSQL database; local API integration tests run only when `TRANSFER_TEST_DATABASE_URL` points at a dedicated disposable test database.

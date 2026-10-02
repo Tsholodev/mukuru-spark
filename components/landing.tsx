@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { publicDemoConfig } from "@/lib/public-config";
 
-type Door = "thandi" | "amai";
+type Door = "sender" | "receiver";
 
-export function Landing() {
-  const [door, setDoor] = useState<Door>("thandi");
-  const [phone, setPhone] = useState("079 000 1111");
+export function Landing({ databaseUnavailable = false }: { databaseUnavailable?: boolean }) {
+  const [door, setDoor] = useState<Door>("sender");
+  const [phone, setPhone] = useState("");
   const [secret, setSecret] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -16,7 +17,7 @@ export function Landing() {
     setDoor(next);
     setError("");
     setSecret("");
-    setPhone(next === "thandi" ? "079 000 1111" : "077 441 8000");
+    setPhone("");
   }
 
   async function submit(event: React.FormEvent) {
@@ -30,7 +31,10 @@ export function Landing() {
     });
     setBusy(false);
     if (!response.ok) {
-      setError("That phone and secret do not match. Nothing was opened.");
+      const body = await response.json().catch(() => null);
+      setError(body?.error === "database_not_configured"
+        ? "PostgreSQL is not configured yet. Set DATABASE_URL on the server."
+        : "That phone and password do not match. Nothing was opened.");
       return;
     }
     const body = await response.json();
@@ -41,40 +45,49 @@ export function Landing() {
     <main className="glass-page min-h-dvh px-4 py-10">
       <div className="mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <section>
-          <p className="text-xs font-semibold tracking-[0.2em] text-[#FFD7C2]">MUKURU HOME</p>
+          <p className="text-xs font-semibold tracking-[0.2em] text-[#FFD7C2]">{publicDemoConfig.appName.toUpperCase()} · MONEY TRANSFERS</p>
           <h1 className="mt-3 max-w-xl text-5xl font-semibold tracking-tight text-white">
-            Money home, with the fee in the open.
+            Send money home. Know exactly what arrives.
           </h1>
           <p className="mt-4 max-w-lg text-lg leading-relaxed text-[#F6EDE6]">
-            Thandi signs in from Johannesburg. Amai signs in from a cheap phone in Harare. The same orders sit in the
-            database, whether they use this page or dial *120#.
+            Choose a registered recipient, see the full cost and payout first, then confirm securely.
           </p>
+          {databaseUnavailable && (
+            <p role="status" className="mt-4 max-w-lg rounded-lg border border-[#FFD7C2]/40 bg-white/10 p-3 text-sm text-white">
+              Connect PostgreSQL with DATABASE_URL in the server environment to enable accounts and transfers.
+            </p>
+          )}
           <Link href="/ussd" className="mt-6 inline-flex h-12 items-center rounded-full bg-white/10 px-5 font-semibold text-white">
-            Dial *120# on this phone
+            Try the {publicDemoConfig.ussdDemoCode} USSD flow
           </Link>
         </section>
         <section className="glass rounded-[2rem] p-6">
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              data-testid="door-thandi"
-              className={`h-12 rounded-full font-semibold ${door === "thandi" ? "bg-[#E65300] text-white" : "bg-white/10 text-white"}`}
-              onClick={() => choose("thandi")}
+              data-testid="door-sender"
+              aria-pressed={door === "sender"}
+              className={`h-12 rounded-full font-semibold ${door === "sender" ? "bg-[#E65300] text-white" : "bg-white/10 text-white"}`}
+              onClick={() => choose("sender")}
             >
-              I am Thandi
+              Send money
             </button>
             <button
               type="button"
-              data-testid="door-amai"
-              className={`h-12 rounded-full font-semibold ${door === "amai" ? "bg-[#E65300] text-white" : "bg-white/10 text-white"}`}
-              onClick={() => choose("amai")}
+              data-testid="door-recipient"
+              aria-pressed={door === "receiver"}
+              className={`h-12 rounded-full font-semibold ${door === "receiver" ? "bg-[#E65300] text-white" : "bg-white/10 text-white"}`}
+              onClick={() => choose("receiver")}
             >
-              I am Amai
+              Collect money
             </button>
           </div>
+          <p className="mt-4 text-sm text-[#E7Cbb8]">
+            New here? <Link className="font-semibold text-white underline" href="/register">Create an account</Link>
+          </p>
           <form className="mt-6 space-y-3" onSubmit={(event) => void submit(event)}>
             <label className="block text-sm text-[#F6EDE6]">
-              Phone
+              Mobile number
               <input
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
@@ -83,12 +96,11 @@ export function Landing() {
               />
             </label>
             <label className="block text-sm text-[#F6EDE6]">
-              {door === "thandi" ? "Password" : "PIN"}
+              Password
               <input
                 value={secret}
                 onChange={(event) => setSecret(event.target.value)}
-                type={door === "thandi" ? "password" : "text"}
-                inputMode={door === "amai" ? "numeric" : "text"}
+                type="password"
                 autoComplete="current-password"
                 data-testid="login-secret"
                 className="mt-1 h-12 w-full rounded-2xl border border-white/20 bg-white/10 px-4 text-lg text-white outline-none"
@@ -103,11 +115,7 @@ export function Landing() {
             >
               {busy ? "Opening…" : "Open my account"}
             </button>
-            <p className="text-sm leading-relaxed text-[#E7Cbb8]">
-              {door === "thandi"
-                ? "Demo sign-in 079 000 1111 and 25802580. The card PIN inside a send is still 2580."
-                : "Demo sign-in 077 441 8000 and PIN 4418. Big type, short page, same orders as Thandi."}
-            </p>
+            <p className="text-sm leading-relaxed text-[#E7Cbb8]">Use the phone number and password registered to this account.</p>
           </form>
         </section>
       </div>

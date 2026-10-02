@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 export function UssdLive() {
   const [sessionId] = useState(() => crypto.randomUUID());
-  const [screen, setScreen] = useState("Dialling *120#…");
+  const [screen, setScreen] = useState("Connecting…");
   const [ready, setReady] = useState(false);
 
   async function press(key: string) {

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, Manrope } from "next/font/google";
+import { publicDemoConfig } from "@/lib/public-config";
 import "./globals.css";
 
 const sans = Manrope({
@@ -14,8 +15,8 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mukuru Home",
-  description: "A payday send from Johannesburg to Harare that survives one bar of signal.",
+  title: publicDemoConfig.appName,
+  description: "Send money home with the fee, exchange rate, and payout clear before you confirm.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

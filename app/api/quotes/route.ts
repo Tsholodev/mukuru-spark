@@ -1,13 +1,11 @@
-import { randomUUID } from "crypto";
 import { requireAccount } from "@/lib/auth";
-import { addQuote, buildQuote, type Payout } from "@/lib/engine";
-import { updateLedger } from "@/lib/store";
+import { createTransferQuote } from "@/lib/transfers";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let body: { amountZarCents?: unknown; payout?: unknown };
+  let body: { recipientId?: unknown; amountMinor?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -17,19 +15,15 @@ export async function POST(request: Request) {
   const account = await requireAccount("sender");
   if (!account) return Response.json({ error: "unauthorized" }, { status: 401 });
 
-  const amount = body.amountZarCents;
-  const payout = body.payout;
-  if (typeof amount !== "number" || (payout !== "wallet" && payout !== "cash")) {
+  if (typeof body.recipientId !== "string" || typeof body.amountMinor !== "number") {
     return Response.json({ error: "bad_request" }, { status: 400 });
   }
-
-  const built = buildQuote(amount, payout as Payout, Date.now(), randomUUID());
-  if (!built.ok) return Response.json({ error: built.error }, { status: 400 });
-
-  await updateLedger((ledger) => ({
-    ledger: addQuote(ledger, built.quote),
-    result: built.quote,
-  }));
-
-  return Response.json({ quote: built.quote });
+  try {
+    const quote = await createTransferQuote(account.id, body.recipientId, body.amountMinor);
+    return Response.json({ quote });
+  } catch (error) {
+    const code = error instanceof Error ? error.message : "quote_failed";
+    const status = code === "recipient_not_found" ? 404 : code === "invalid_amount" ? 400 : 503;
+    return Response.json({ error: code }, { status });
+  }
 }
